@@ -16,7 +16,7 @@ import (
 	"github.com/containerd/containerd/contrib/seccomp"
 	"github.com/containerd/containerd/oci"
 	"github.com/containerd/typeurl"
-	v1 "github.com/crosbymichael/boss/api/v1"
+	v1 "github.com/stellarproject/orbit/api/v1"
 	"github.com/gogo/protobuf/types"
 	is "github.com/opencontainers/image-spec/specs-go/v1"
 	specs "github.com/opencontainers/runtime-spec/specs-go"

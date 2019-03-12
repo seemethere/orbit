@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/containerd/containerd"
-	"github.com/crosbymichael/boss/api/v1"
-	"github.com/crosbymichael/boss/util"
+	"github.com/stellarproject/orbit/api/v1"
+	"github.com/stellarproject/orbit/util"
 	"github.com/hashicorp/consul/api"
 	"github.com/urfave/cli"
 )

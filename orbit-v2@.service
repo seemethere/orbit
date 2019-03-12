@@ -1,0 +1,14 @@
+[Unit]
+Description=Orbit container proxy for %i
+Wants=network-online.target containerd.service
+After=network-online.target containerd.service network.target
+
+[Service]
+ExecStartPre=/usr/local/bin/orbit-systemd exec-start-pre %i
+ExecStart=/usr/local/bin/orbit-systemd exec-start %i
+ExecStopPost=/usr/local/bin/orbit-systemd exec-stop-post %i
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

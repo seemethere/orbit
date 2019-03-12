@@ -6,7 +6,7 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/crosbymichael/boss/api/v1"
+	"github.com/stellarproject/orbit/api/v1"
 	units "github.com/docker/go-units"
 	"github.com/urfave/cli"
 )

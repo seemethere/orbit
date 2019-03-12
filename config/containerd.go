@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/containerd/containerd"
-	"github.com/crosbymichael/boss/system"
-	"github.com/crosbymichael/boss/systemd"
+	"github.com/stellarproject/orbit/system"
+	"github.com/stellarproject/orbit/systemd"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli"
 )

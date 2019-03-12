@@ -1,6 +1,6 @@
 package config
 
-import "github.com/crosbymichael/boss/api/v1"
+import "github.com/stellarproject/orbit/api/v1"
 
 type nullRegister struct {
 }

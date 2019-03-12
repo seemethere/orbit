@@ -1,4 +1,4 @@
-repo = "github.com/crosbymichael/boss"
+repo = "github.com/stellarproject/orbit"
 interval = 60
 
 [[steps]]

@@ -6,7 +6,7 @@ import (
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/defaults"
 	"github.com/containerd/containerd/namespaces"
-	"github.com/crosbymichael/boss/api/v1"
+	"github.com/stellarproject/orbit/api/v1"
 )
 
 // Context returns a new context to be used by boss

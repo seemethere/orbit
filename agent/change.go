@@ -6,10 +6,10 @@ import (
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/containers"
 	"github.com/containerd/containerd/errdefs"
-	"github.com/crosbymichael/boss/api/v1"
-	"github.com/crosbymichael/boss/config"
-	"github.com/crosbymichael/boss/flux"
-	"github.com/crosbymichael/boss/opts"
+	"github.com/stellarproject/orbit/api/v1"
+	"github.com/stellarproject/orbit/config"
+	"github.com/stellarproject/orbit/flux"
+	"github.com/stellarproject/orbit/opts"
 )
 
 type change interface {

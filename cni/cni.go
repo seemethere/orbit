@@ -10,9 +10,9 @@ import (
 
 	"github.com/containerd/containerd"
 	networking "github.com/containerd/go-cni"
-	v1 "github.com/crosbymichael/boss/api/v1"
-	"github.com/crosbymichael/boss/opts"
-	"github.com/crosbymichael/boss/route"
+	v1 "github.com/stellarproject/orbit/api/v1"
+	"github.com/stellarproject/orbit/opts"
+	"github.com/stellarproject/orbit/route"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"

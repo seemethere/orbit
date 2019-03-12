@@ -1,6 +1,6 @@
 package cmd
 
-import v1 "github.com/crosbymichael/boss/api/v1"
+import v1 "github.com/stellarproject/orbit/api/v1"
 
 const Version = "v1"
 

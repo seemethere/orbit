@@ -8,7 +8,7 @@ import (
 	"text/template"
 
 	"github.com/containerd/containerd"
-	"github.com/crosbymichael/boss/systemd"
+	"github.com/stellarproject/orbit/systemd"
 	"github.com/urfave/cli"
 )
 

@@ -6,18 +6,18 @@ import (
 	"os"
 
 	"github.com/containerd/containerd/namespaces"
-	"github.com/crosbymichael/boss/api"
-	v1 "github.com/crosbymichael/boss/api/v1"
-	"github.com/crosbymichael/boss/cmd"
-	"github.com/crosbymichael/boss/version"
 	raven "github.com/getsentry/raven-go"
 	"github.com/sirupsen/logrus"
+	"github.com/stellarproject/orbit/api"
+	v1 "github.com/stellarproject/orbit/api/v1"
+	"github.com/stellarproject/orbit/cmd"
+	"github.com/stellarproject/orbit/version"
 	"github.com/urfave/cli"
 )
 
 func main() {
 	app := cli.NewApp()
-	app.Name = "boss"
+	app.Name = "orbit"
 	app.Version = version.Version
 	app.Usage = "run containers like a ross"
 	app.Description = cmd.Banner

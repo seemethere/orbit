@@ -2,8 +2,8 @@ package main
 
 import (
 	"github.com/BurntSushi/toml"
-	"github.com/crosbymichael/boss/api/v1"
-	"github.com/crosbymichael/boss/cmd"
+	"github.com/stellarproject/orbit/api/v1"
+	"github.com/stellarproject/orbit/cmd"
 	"github.com/urfave/cli"
 )
 

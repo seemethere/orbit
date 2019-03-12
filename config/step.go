@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/containerd/containerd"
-	"github.com/crosbymichael/boss/image"
-	"github.com/crosbymichael/boss/systemd"
+	"github.com/stellarproject/orbit/image"
+	"github.com/stellarproject/orbit/systemd"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli"
 )

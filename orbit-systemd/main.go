@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/crosbymichael/boss/cmd"
-	"github.com/crosbymichael/boss/version"
+	"github.com/stellarproject/orbit/cmd"
+	"github.com/stellarproject/orbit/version"
 	raven "github.com/getsentry/raven-go"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"

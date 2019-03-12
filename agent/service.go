@@ -12,8 +12,8 @@ import (
 	"github.com/containerd/containerd/plugin"
 	"github.com/containerd/containerd/services"
 	"github.com/containerd/containerd/snapshots"
-	v1 "github.com/crosbymichael/boss/api/v1"
-	"github.com/crosbymichael/boss/config"
+	v1 "github.com/stellarproject/orbit/api/v1"
+	"github.com/stellarproject/orbit/config"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 )

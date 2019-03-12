@@ -9,7 +9,7 @@ import (
 
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/oci"
-	"github.com/crosbymichael/boss/api/v1"
+	"github.com/stellarproject/orbit/api/v1"
 	"github.com/hashicorp/consul/api"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"

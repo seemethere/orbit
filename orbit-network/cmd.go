@@ -7,8 +7,8 @@ import (
 
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/version"
-	"github.com/crosbymichael/boss/cmd"
-	bv "github.com/crosbymichael/boss/version"
+	"github.com/stellarproject/orbit/cmd"
+	bv "github.com/stellarproject/orbit/version"
 	raven "github.com/getsentry/raven-go"
 	"github.com/urfave/cli"
 )
