@@ -8,7 +8,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/containerd/containerd"
 	gocni "github.com/containerd/go-cni"
-	"github.com/crosbymichael/boss/api/v1"
+	v1 "github.com/crosbymichael/boss/api/v1"
 	"github.com/crosbymichael/boss/cni"
 	"github.com/crosbymichael/boss/consulregister"
 	"github.com/crosbymichael/boss/util"
@@ -158,73 +158,6 @@ func (c *Config) GetRegister() (v1.Register, error) {
 		return consulregister.New(consul), nil
 	}
 	return &nullRegister{}, nil
-}
-
-func (c *Config) Steps() []Step {
-	steps := []Step{
-		&Mkdir{},
-		&Systemd{},
-		&Timezone{TZ: c.Timezone},
-		&c.Agent,
-	}
-	if c.consul() {
-		// set the config for other things
-		c.Consul.c = c
-		steps = append(steps, c.Consul)
-		steps = append(steps, c.Consul.SubSteps()...)
-		steps = append(steps, &RegisterService{
-			Config: c,
-			ID:     "agent",
-			Tags: []string{
-				"boss",
-			},
-			Port: 1337,
-			Check: &v1.HealthCheck{
-				Type: "grpc",
-			},
-		})
-	}
-	if c.NodeExporter != nil {
-		steps = append(steps, c.NodeExporter)
-		if c.consul() {
-			steps = append(steps, &RegisterService{
-				Config: c,
-				ID:     "node-exporter",
-				Tags: []string{
-					"metrics",
-				},
-				Port: 9100,
-			})
-		}
-	}
-	if c.Buildkit != nil {
-		steps = append(steps, c.Buildkit)
-		if c.consul() {
-			steps = append(steps, &RegisterService{
-				Config: c,
-				ID:     "buildkit",
-				Port:   9500,
-				Tags:   []string{"build"},
-			})
-		}
-	}
-	if c.CNI != nil {
-		steps = append(steps, c.CNI)
-		steps = append(steps, c.CNI.SubSteps()...)
-	}
-	if c.MOTD != nil {
-		steps = append(steps, c.MOTD)
-	}
-	if c.SSH != nil {
-		steps = append(steps, c.SSH)
-	}
-	if c.consul() {
-		// add DNS at the end so we can still pull images in the other steps
-		steps = append(steps, &DNS{
-			ID: c.ID,
-		})
-	}
-	return steps
 }
 
 func (c *Config) consul() bool {

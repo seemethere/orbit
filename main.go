@@ -7,36 +7,20 @@ import (
 
 	"github.com/containerd/containerd/namespaces"
 	"github.com/crosbymichael/boss/api"
-	"github.com/crosbymichael/boss/api/v1"
+	v1 "github.com/crosbymichael/boss/api/v1"
+	"github.com/crosbymichael/boss/cmd"
 	"github.com/crosbymichael/boss/version"
 	raven "github.com/getsentry/raven-go"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 )
 
-var Version string
-
 func main() {
 	app := cli.NewApp()
 	app.Name = "boss"
-	// haha semver
 	app.Version = version.Version
 	app.Usage = "run containers like a ross"
-	app.Description = `
-
-                    ___           ___           ___     
-     _____         /\  \         /\__\         /\__\    
-    /::\  \       /::\  \       /:/ _/_       /:/ _/_   
-   /:/\:\  \     /:/\:\  \     /:/ /\  \     /:/ /\  \  
-  /:/ /::\__\   /:/  \:\  \   /:/ /::\  \   /:/ /::\  \ 
- /:/_/:/\:|__| /:/__/ \:\__\ /:/_/:/\:\__\ /:/_/:/\:\__\
- \:\/:/ /:/  / \:\  \ /:/  / \:\/:/ /:/  / \:\/:/ /:/  /
-  \::/_/:/  /   \:\  /:/  /   \::/ /:/  /   \::/ /:/  / 
-   \:\/:/  /     \:\/:/  /     \/_/:/  /     \/_/:/  /  
-    \::/  /       \::/  /        /:/  /        /:/  /   
-     \/__/         \/__/         \/__/         \/__/    
-
-run containers like a boss`
+	app.Description = cmd.Banner
 	app.Flags = []cli.Flag{
 		cli.BoolFlag{
 			Name:  "debug",
@@ -65,23 +49,18 @@ run containers like a boss`
 		return nil
 	}
 	app.Commands = []cli.Command{
-		agentCommand,
-		buildCommand,
 		checkpointCommand,
 		createCommand,
 		deleteCommand,
 		getCommand,
-		initCommand,
 		killCommand,
 		listCommand,
 		migrateCommand,
-		networkCommand,
 		pushCommand,
 		restoreCommand,
 		rollbackCommand,
 		startCommand,
 		stopCommand,
-		systemdCommand,
 		updateCommand,
 	}
 	if err := app.Run(os.Args); err != nil {

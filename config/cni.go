@@ -1,12 +1,13 @@
 package config
 
 import (
-	"context"
 	"encoding/json"
-
-	"github.com/containerd/containerd"
-	"github.com/urfave/cli"
 )
+
+type IPAM struct {
+	Type   string `toml:"type" json:"type"`
+	Subnet string `toml:"subnet" json:"subnet"`
+}
 
 type CNI struct {
 	Image         string `toml:"image" json:"-"`
@@ -19,13 +20,6 @@ type CNI struct {
 	BridgeAddress string `toml:"bridge_address" json:"-"`
 }
 
-func (c *CNI) SubSteps() (o []Step) {
-	if c.IPAM.Type == "dhcp" {
-		o = append(o, &DHCP{})
-	}
-	return o
-}
-
 func (c *CNI) Bytes() []byte {
 	data, err := json.Marshal(c)
 	if err != nil {
@@ -34,19 +28,6 @@ func (c *CNI) Bytes() []byte {
 	return data
 }
 
-type IPAM struct {
-	Type   string `toml:"type" json:"type"`
-	Subnet string `toml:"subnet" json:"subnet"`
-}
-
 func (s *CNI) Name() string {
 	return "cni"
-}
-
-func (s *CNI) Run(ctx context.Context, client *containerd.Client, clix *cli.Context) error {
-	return install(ctx, client, s.Image, clix)
-}
-
-func (s *CNI) Remove(ctx context.Context, client *containerd.Client, clix *cli.Context) error {
-	return client.ImageService().Delete(ctx, s.Image)
 }
