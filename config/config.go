@@ -7,13 +7,9 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/containerd/containerd"
-	gocni "github.com/containerd/go-cni"
-	v1 "github.com/stellarproject/orbit/api/v1"
-	"github.com/stellarproject/orbit/cni"
-	"github.com/stellarproject/orbit/consulregister"
-	"github.com/stellarproject/orbit/util"
 	"github.com/hashicorp/consul/api"
-	"github.com/pkg/errors"
+	v1 "github.com/stellarproject/orbit/api/v1"
+	"github.com/stellarproject/orbit/consulregister"
 )
 
 const (
@@ -83,45 +79,6 @@ func (c *Config) Store() (ConfigStore, error) {
 		}, nil
 	}
 	return &nullStore{}, nil
-}
-
-// GetNetwork returns a network for the givin name
-func (c *Config) GetNetwork(name string) (v1.Network, error) {
-	ip, err := util.GetIP(c.Iface)
-	if err != nil {
-		return nil, err
-	}
-	switch name {
-	case "", "none":
-		return &none{}, nil
-	case "host":
-		return &host{ip: ip}, nil
-	case "cni":
-		if c.CNI == nil {
-			return nil, errors.New("[cni] is not enabled in the system config")
-		}
-		if c.CNI.Type == "macvlan" && c.CNI.BridgeAddress == "" {
-			return nil, errors.New("bridge_address must be specified with macvlan")
-		}
-		// populate cni data from main config if fields are missing
-		c.CNI.Version = "0.3.1"
-		if c.CNI.NetworkName == "" {
-			c.CNI.NetworkName = c.Domain
-		}
-		if c.CNI.Master == "" {
-			c.CNI.Master = c.Iface
-		}
-		n, err := gocni.New(
-			gocni.WithPluginDir([]string{"/opt/containerd/bin"}),
-			gocni.WithConf(c.CNI.Bytes()),
-			gocni.WithLoNetwork,
-		)
-		if err != nil {
-			return nil, err
-		}
-		return cni.New(c.CNI.Type, c.Iface, c.CNI.BridgeAddress, n)
-	}
-	return nil, errors.Errorf("network %s does not exist", name)
 }
 
 func (c *Config) GetNameservers() ([]string, error) {

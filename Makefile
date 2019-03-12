@@ -4,13 +4,12 @@ GO_LDFLAGS=-s -w -X github.com/stellarproject/orbit/version.Version=$(REVISION)
 
 all:
 	rm -f bin/*
-	vab build --local
-
-local:
-	rm -f bin/*
 	go build -o bin/orbit -v -ldflags '${GO_LDFLAGS}'
-	go build -o bin/orbit-systemd -v -ldflags '${GO_LDFLAGS}' github.com/stellarproject/orbit/orbit-systemd
 	go build -o bin/orbit-network -v -ldflags '${GO_LDFLAGS}' github.com/stellarproject/orbit/orbit-network
+
+vab:
+	rm -f bin/*
+	vab build --local
 
 static:
 	CGO_ENALBED=0 go build -v -ldflags '${GO_LDFLAGS} -extldflags "-static"'

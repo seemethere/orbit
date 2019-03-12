@@ -15,7 +15,7 @@ RUN apt-get update && \
 	make \
 	xfsprogs
 
-ENV CONTAINERD_VERSION 27cafbb3b81481347eace9bae2751ec0220cc02c
+ENV CONTAINERD_VERSION 25661059f02d2eef97bdc84185675a1d2c8d405b
 RUN git clone https://github.com/crosbymichael/containerd /go/src/github.com/containerd/containerd
 RUN git clone https://github.com/opencontainers/runc /go/src/github.com/opencontainers/runc
 
@@ -38,7 +38,7 @@ RUN	rm -rf /go/src/github.com/stellarproject/orbit/vendor/github.com/containerd/
 
 WORKDIR /go/src/github.com/stellarproject/orbit
 
-RUN make local && make plugin
+RUN make && make plugin
 
 FROM scratch
 

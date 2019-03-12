@@ -12,12 +12,13 @@ import (
 	"github.com/containerd/containerd/plugin"
 	"github.com/containerd/containerd/services"
 	"github.com/containerd/containerd/snapshots"
+	"github.com/pkg/errors"
 	v1 "github.com/stellarproject/orbit/api/v1"
 	"github.com/stellarproject/orbit/config"
-	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 )
 
+// init func for a containerd service plugin
 func init() {
 	c, err := config.Load()
 	if err != nil {

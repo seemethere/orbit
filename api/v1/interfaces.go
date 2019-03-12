@@ -8,10 +8,10 @@ import (
 )
 
 const (
-	Root             = "/var/lib/boss"
-	state            = "/run/boss"
-	DefaultRuntime   = "io.containerd.runc.v1"
-	DefaultNamespace = "boss"
+	Root             = "/var/lib/orbit"
+	state            = "/run/orbit"
+	DefaultRuntime   = "io.containerd.runc.v2"
+	DefaultNamespace = "orbit"
 )
 
 func StatePath(id string) string {
@@ -22,8 +22,6 @@ func StatePath(id string) string {
 type Register interface {
 	Register(id, name, ip string, s *Service) error
 	Deregister(id, name string) error
-	EnableMaintainance(id, name, msg string) error
-	DisableMaintainance(id, name string) error
 }
 
 type Network interface {
