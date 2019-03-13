@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/containerd/cgroups"
@@ -764,7 +765,7 @@ func (a *Agent) reconcile(ctx context.Context) error {
 	}
 	var dd []stateChange
 	for _, c := range containers {
-		d, err := getContainerDiff(ctx, c)
+		d, err := a.getContainerDiff(ctx, c)
 		if err != nil {
 			logrus.WithError(err).WithField("id", c.ID()).Error("unable to generate supervisor diff")
 			continue
@@ -772,7 +773,7 @@ func (a *Agent) reconcile(ctx context.Context) error {
 		dd = append(dd, d)
 	}
 	for _, d := range dd {
-		if err := d.apply(ctx, a.client); err != nil {
+		if err := d.apply(ctx); err != nil {
 			logrus.WithError(err).WithField("id", c.ID()).Error("unable to apply state change")
 		}
 	}
@@ -825,17 +826,37 @@ func (a *Agent) start(ctx context.Context, container containerd.Container) error
 }
 
 func (a *Agent) stop(ctx context.Context, container containerd.Container) error {
+	logrus.WithField("id", container.ID()).Debug("stopping container")
 	a.supervisorMu.Lock()
 	defer a.supervisorMu.Unlock()
 	if err := container.Update(ctx, withStatus(containerd.Stopped)); err != nil {
 		return err
 	}
+	task, err := container.Task(ctx, nil)
+	if err == nil {
+		wait, err := task.Wait(ctx)
+		if err != nil {
+			if _, derr := task.Delete(ctx); derr == nil {
+				return nil
+			}
+			return err
+		}
+		if err := task.Kill(ctx, syscall.SIGKILL, containerd.WithKillAll); err != nil {
+			if _, derr := task.Delete(ctx); derr == nil {
+				return nil
+			}
+			return err
+		}
+		<-wait
+		if _, err := task.Delete(ctx); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (a *Agent) setupRuntimeFiles(ctx context.Context, container containerd.Container) error {
-	if err := a.setupResolvConf(container.ID()); err != nil {
-		return err
-	}
+	return a.setupResolvConf(container.ID())
 }
 
 func (a *Agent) nameservers() []string {
@@ -874,6 +895,29 @@ func (a *Agent) setupResolvConf(id string) error {
 	return os.Rename(f.Name(), filepath.Join(v1.Root, id, "resolv.conf"))
 }
 
+func (a *Agent) getContainerDiff(ctx context.Context, container containerd.Container) (stateChange, error) {
+	labels, err := c.Labels(ctx)
+	if err != nil {
+		return nil, err
+	}
+	desiredStatus := containerd.ProcessStatus(labels[StatusLabel])
+	if !isSameStatus(ctx, desiredStatus, c) {
+		switch desiredStatus {
+		case containerd.Running:
+			return &startDiff{
+				a:         a,
+				container: container,
+			}, nil
+		case containerd.Stopped:
+			return &stopDiff{
+				a:         a,
+				container: container,
+			}, nil
+		}
+	}
+	return sameDiff(), nil
+}
+
 func withStatus(status containerd.ProcessStatus) func(context.Context, *containerd.Client, *containers.Container) error {
 	return func(_ context.Context, _ *containerd.Client, c *containers.Container) error {
 		ensureLabels(c)
@@ -886,27 +930,6 @@ func ensureLabels(c *containers.Container) {
 	if c.Labels == nil {
 		c.Labels = make(map[string]string)
 	}
-}
-
-func getContainerDiff(ctx context.Context, container containerd.Container) (stateChange, error) {
-	labels, err := c.Labels(ctx)
-	if err != nil {
-		return nil, err
-	}
-	desiredStatus := containerd.ProcessStatus(labels[StatusLabel])
-	if !isSameStatus(ctx, desiredStatus, c) {
-		switch desiredStatus {
-		case containerd.Running:
-			return &startDiff{
-				container: container,
-			}, nil
-		case containerd.Stopped:
-			return &stopDiff{
-				container: container,
-			}, nil
-		}
-	}
-	return sameDiff(), nil
 }
 
 func isSameStatus(ctx context.Context, desired containerd.ProcessStatus, container containerd.Container) bool {
