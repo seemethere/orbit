@@ -4,6 +4,7 @@ GO_LDFLAGS=-s -w -X github.com/stellarproject/orbit/version.Version=$(REVISION)
 
 all:
 	rm -f bin/*
+	go build -v -ldflags '${GO_LDFLAGS}' github.com/stellarproject/orbit/agent
 	go build -o bin/orbit -v -ldflags '${GO_LDFLAGS}' github.com/stellarproject/orbit/cmd/ob
 	go build -o bin/orbit-network -v -ldflags '${GO_LDFLAGS}' github.com/stellarproject/orbit/cmd/orbit-network
 

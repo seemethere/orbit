@@ -1,9 +1,12 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
 	"time"
 
+	"github.com/containerd/containerd"
+	gocni "github.com/containerd/go-cni"
 	"github.com/pkg/errors"
 	v1 "github.com/stellarproject/orbit/api/v1"
 	"github.com/stellarproject/orbit/cni"
@@ -11,10 +14,9 @@ import (
 )
 
 type Config struct {
-	ID           string   `toml:"id"`     //TODO: remove for hostname
-	Iface        string   `toml:"iface"`  // TODO: dynamic public route
-	Domain       string   `toml:"domain"` // TODO: hostname and domain name
-	CNI          *CNI     `toml:"cni"`    // TODO: move networking to container
+	ID           string   `toml:"id"`    //TODO: remove for hostname
+	Iface        string   `toml:"iface"` // TODO: dynamic public route
+	CNI          *CNI     `toml:"cni"`   // TODO: move networking to container
 	Nameservers  []string `toml:"nameservers"`
 	Timezone     string   `toml:"timezone"`
 	PlainRemotes []string `toml:"plain_remotes"`
@@ -22,13 +24,8 @@ type Config struct {
 	Interval     duration `toml:"supervisor_interval"`
 }
 
-type IPAM struct {
-	Type   string `toml:"type" json:"type"`
-	Subnet string `toml:"subnet" json:"subnet"`
-}
-
 type CNI struct {
-	Image         string `toml:"image" json:"-"`
+	Domain        string `toml:"domain,omitempty" json:"-"` // TODO: hostname and domain name
 	Version       string `toml:"-" json:"cniVersion,omitempty"`
 	NetworkName   string `toml:"name" json:"name"`
 	Type          string `toml:"type" json:"type"`
@@ -36,6 +33,11 @@ type CNI struct {
 	IPAM          IPAM   `toml:"ipam" json:"ipam"`
 	Bridge        string `toml:"bridge" json:"bridge,omitempty"`
 	BridgeAddress string `toml:"bridge_address" json:"-"`
+}
+
+type IPAM struct {
+	Type   string `toml:"type" json:"type"`
+	Subnet string `toml:"subnet" json:"subnet"`
 }
 
 func (c *CNI) Bytes() []byte {
@@ -58,6 +60,29 @@ func (d *duration) UnmarshalText(text []byte) error {
 
 func (d duration) MarshalText() ([]byte, error) {
 	return []byte(d.Duration.String()), nil
+}
+
+type host struct {
+	ip string
+}
+
+func (n *host) Create(_ context.Context, _ containerd.Container) (string, error) {
+	return n.ip, nil
+}
+
+func (n *host) Remove(_ context.Context, _ containerd.Container) error {
+	return nil
+}
+
+type none struct {
+}
+
+func (n *none) Create(_ context.Context, _ containerd.Container) (string, error) {
+	return "", nil
+}
+
+func (n *none) Remove(_ context.Context, _ containerd.Container) error {
+	return nil
 }
 
 func getNetwork(publicInterface, networkType string, c *CNI) (v1.Network, error) {
@@ -83,7 +108,7 @@ func getNetwork(publicInterface, networkType string, c *CNI) (v1.Network, error)
 			c.NetworkName = c.Domain
 		}
 		if c.Master == "" {
-			c.Master = c.Iface
+			c.Master = publicInterface
 		}
 		n, err := gocni.New(
 			gocni.WithPluginDir([]string{"/opt/containerd/bin"}),

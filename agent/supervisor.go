@@ -18,7 +18,7 @@ type stopDiff struct {
 }
 
 func (s *stopDiff) apply(ctx context.Context) error {
-	return killTask(ctx, s.container)
+	return s.a.stop(ctx, s.container)
 }
 
 type startDiff struct {
@@ -37,7 +37,7 @@ func sameDiff() stateChange {
 type nullDiff struct {
 }
 
-func (n *nullDiff) apply(_ context.Context, _ *containerd.Client) error {
+func (n *nullDiff) apply(_ context.Context) error {
 	return nil
 }
 

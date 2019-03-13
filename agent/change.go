@@ -6,8 +6,7 @@ import (
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/containers"
 	"github.com/containerd/containerd/errdefs"
-	"github.com/stellarproject/orbit/api/v1"
-	"github.com/stellarproject/orbit/config"
+	v1 "github.com/stellarproject/orbit/api/v1"
 	"github.com/stellarproject/orbit/flux"
 	"github.com/stellarproject/orbit/opts"
 )
@@ -53,12 +52,12 @@ func (c *configChange) update(ctx context.Context, container containerd.Containe
 }
 
 type filesChange struct {
-	c     *v1.Container
-	store config.ConfigStore
+	c *v1.Container
 }
 
 func (c *filesChange) update(ctx context.Context, container containerd.Container) error {
-	return c.store.Write(ctx, c.c)
+	return nil
+	// return c.store.Write(ctx, c.c)
 }
 
 func pauseAndRun(ctx context.Context, container containerd.Container, fn func() error) error {

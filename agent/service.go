@@ -14,34 +14,22 @@ import (
 	"github.com/containerd/containerd/snapshots"
 	"github.com/pkg/errors"
 	v1 "github.com/stellarproject/orbit/api/v1"
-	"github.com/stellarproject/orbit/config"
 	"google.golang.org/grpc"
 )
 
 // init func for a containerd service plugin
 func init() {
-	c, err := config.Load()
-	if err != nil {
-		panic(err)
-	}
 	plugin.Register(&plugin.Registration{
 		Type:   plugin.GRPCPlugin,
 		ID:     "boss",
-		Config: c,
+		Config: &Config{},
 		Requires: []plugin.Type{
 			plugin.ServicePlugin,
 		},
 		InitFn: func(ic *plugin.InitContext) (interface{}, error) {
 			// ic.Meta.Platforms = []imagespec.Platform{platforms.DefaultSpec()}
 			//	ic.Meta.Exports = map[string]string{"CRIVersion": constants.CRIVersion}
-			c := ic.Config.(*config.Config)
-			if err != nil {
-				return nil, err
-			}
-			store, err := c.Store()
-			if err != nil {
-				return nil, err
-			}
+			c := ic.Config.(*Config)
 			servicesOpts, err := getServicesOpts(ic)
 			if err != nil {
 				return nil, err
@@ -54,7 +42,7 @@ func init() {
 			if err != nil {
 				return nil, err
 			}
-			return New(c, client, store)
+			return New(ic.Context, c, nil, client)
 		},
 	})
 }

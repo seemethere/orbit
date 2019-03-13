@@ -38,10 +38,8 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stellarproject/orbit/api"
 	v1 "github.com/stellarproject/orbit/api/v1"
-	"github.com/stellarproject/orbit/config"
 	"github.com/stellarproject/orbit/flux"
 	"github.com/stellarproject/orbit/opts"
-	"github.com/stellarproject/orbit/systemd"
 	"golang.org/x/sys/unix"
 )
 
@@ -62,27 +60,25 @@ const (
 	StatusLabel            = "stellarproject.io/orbit/restart.status"
 )
 
-func New(ctx context.Context, c *Config, register v1.Register, client *containerd.Client, store config.ConfigStore) (*Agent, error) {
+func New(ctx context.Context, c *Config, register v1.Register, client *containerd.Client) (*Agent, error) {
 	if err := setupApparmor(); err != nil {
 		return nil, err
 	}
-	for _, r := range c.Agent.PlainRemotes {
+	for _, r := range c.PlainRemotes {
 		plainRemotes[r] = true
 	}
 	a := &Agent{
 		c:        c,
 		client:   client,
-		store:    store,
 		register: register,
 	}
-	go a.startSupervisorLoop(ctx, c.Interval)
+	go a.startSupervisorLoop(ctx, c.Interval.Duration)
 	return a, nil
 }
 
 type Agent struct {
 	client       *containerd.Client
 	c            *Config
-	store        config.ConfigStore
 	register     v1.Register
 	supervisorMu sync.Mutex
 }
@@ -105,16 +101,18 @@ func (a *Agent) Create(ctx context.Context, req *v1.CreateRequest) (*types.Empty
 	container, err := a.client.NewContainer(ctx,
 		req.Container.ID,
 		flux.WithNewSnapshot(image),
-		opts.WithBossConfig(a.c.Agent.VolumeRoot, req.Container, image),
+		opts.WithBossConfig(a.c.VolumeRoot, req.Container, image),
 	)
 	if err != nil {
 		return nil, err
 	}
-	if err := a.store.Write(ctx, req.Container); err != nil {
-		container.Delete(ctx, containerd.WithSnapshotCleanup)
-		return nil, err
-	}
-	if err := systemd.Start(ctx, container.ID()); err != nil {
+	/*
+		if err := a.store.Write(ctx, req.Container); err != nil {
+			container.Delete(ctx, containerd.WithSnapshotCleanup)
+			return nil, err
+		}
+	*/
+	if err := a.start(ctx, container); err != nil {
 		return nil, err
 	}
 	return empty, nil
@@ -130,8 +128,8 @@ func (a *Agent) Delete(ctx context.Context, req *v1.DeleteRequest) (*types.Empty
 	if err != nil {
 		return nil, errors.Wrap(err, "load container")
 	}
-	if err := systemd.Stop(ctx, id); err != nil {
-		return nil, errors.Wrap(err, "stop service")
+	if err := a.stop(ctx, container); err != nil {
+		return nil, errors.Wrap(err, "stop container")
 	}
 	config, err := opts.GetConfig(ctx, container)
 	if err != nil {
@@ -143,11 +141,6 @@ func (a *Agent) Delete(ctx context.Context, req *v1.DeleteRequest) (*types.Empty
 	}
 	if err := network.Remove(ctx, container); err != nil {
 		return nil, err
-	}
-	for name := range config.Services {
-		if err := a.register.Deregister(id, name); err != nil {
-			logrus.WithError(err).Errorf("de-register %s-%s", id, name)
-		}
 	}
 	return empty, container.Delete(ctx, flux.WithRevisionCleanup)
 }
@@ -290,15 +283,6 @@ func (a *Agent) Kill(ctx context.Context, req *v1.KillRequest) (*types.Empty, er
 	if err != nil {
 		return nil, err
 	}
-	config, err := opts.GetConfig(ctx, container)
-	if err != nil {
-		return nil, err
-	}
-	for name := range config.Services {
-		if err := a.register.EnableMaintainance(id, name, "manual kill"); err != nil {
-			logrus.WithError(err).Errorf("enable maintaince %s-%s", id, name)
-		}
-	}
 	task, err := container.Task(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -315,7 +299,16 @@ func (a *Agent) Start(ctx context.Context, req *v1.StartRequest) (*types.Empty, 
 	if id == "" {
 		return nil, ErrNoID
 	}
-	return empty, systemd.Start(ctx, req.ID)
+	ctx, done, err := a.client.WithLease(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer done(ctx)
+	container, err := a.client.LoadContainer(ctx, req.ID)
+	if err != nil {
+		return nil, err
+	}
+	return empty, a.start(ctx, container)
 }
 
 func (a *Agent) Stop(ctx context.Context, req *v1.StopRequest) (*types.Empty, error) {
@@ -324,7 +317,17 @@ func (a *Agent) Stop(ctx context.Context, req *v1.StopRequest) (*types.Empty, er
 	if id == "" {
 		return nil, ErrNoID
 	}
-	return empty, systemd.Stop(ctx, req.ID)
+	ctx, done, err := a.client.WithLease(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer done(ctx)
+	container, err := a.client.LoadContainer(ctx, req.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	return empty, a.stop(ctx, container)
 }
 
 func (a *Agent) Update(ctx context.Context, req *v1.UpdateRequest) (*v1.UpdateResponse, error) {
@@ -341,12 +344,6 @@ func (a *Agent) Update(ctx context.Context, req *v1.UpdateRequest) (*v1.UpdateRe
 	current, err := opts.GetConfig(ctx, container)
 	if err != nil {
 		return nil, err
-	}
-	// set all current services into maintaince mode
-	for name := range current.Services {
-		if err := a.register.EnableMaintainance(container.ID(), name, "update container configuration"); err != nil {
-			logrus.WithError(err).Errorf("enable maintaince %s-%s", container.ID(), name)
-		}
 	}
 	var changes []change
 	for name := range current.Services {
@@ -365,11 +362,11 @@ func (a *Agent) Update(ctx context.Context, req *v1.UpdateRequest) (*v1.UpdateRe
 	changes = append(changes, &configChange{
 		client:     a.client,
 		c:          req.Container,
-		volumeRoot: a.c.Agent.VolumeRoot,
+		volumeRoot: a.c.VolumeRoot,
 	})
 	changes = append(changes, &filesChange{
-		c:     req.Container,
-		store: a.store,
+		c: req.Container,
+		// store: a.store,
 	})
 
 	var wait <-chan containerd.ExitStatus
@@ -585,7 +582,7 @@ func (a *Agent) Checkpoint(ctx context.Context, req *v1.CheckpointRequest) (*v1.
 		return nil, err
 	}
 	if req.Exit {
-		if err := systemd.Stop(ctx, req.ID); err != nil {
+		if err := a.stop(ctx, container); err != nil {
 			return nil, errors.Wrap(err, "stop service")
 		}
 	}
@@ -635,7 +632,7 @@ func (a *Agent) Restore(ctx context.Context, req *v1.RestoreRequest) (*v1.Restor
 	}
 	o := []containerd.NewContainerOpts{
 		flux.WithNewSnapshot(image),
-		opts.WithBossConfig(a.c.Agent.VolumeRoot, config, image),
+		opts.WithBossConfig(a.c.VolumeRoot, config, image),
 	}
 	if req.Live {
 		desc, err := getByMediaType(index, images.MediaTypeContainerd1Checkpoint)
@@ -667,11 +664,13 @@ func (a *Agent) Restore(ctx context.Context, req *v1.RestoreRequest) (*v1.Restor
 	if _, err := a.client.DiffService().Apply(ctx, *rw, mounts); err != nil {
 		return nil, err
 	}
-	if err := a.store.Write(ctx, config); err != nil {
-		container.Delete(ctx, containerd.WithSnapshotCleanup)
-		return nil, err
-	}
-	if err := systemd.Start(ctx, container.ID()); err != nil {
+	/*
+		if err := a.store.Write(ctx, config); err != nil {
+			container.Delete(ctx, containerd.WithSnapshotCleanup)
+			return nil, err
+		}
+	*/
+	if err := a.start(ctx, container); err != nil {
 		return nil, err
 	}
 	return &v1.RestoreResponse{}, nil
@@ -774,7 +773,7 @@ func (a *Agent) reconcile(ctx context.Context) error {
 	}
 	for _, d := range dd {
 		if err := d.apply(ctx); err != nil {
-			logrus.WithError(err).WithField("id", c.ID()).Error("unable to apply state change")
+			logrus.WithError(err).Error("unable to apply state change")
 		}
 	}
 	return nil
@@ -871,10 +870,6 @@ func (a *Agent) nameservers() []string {
 }
 
 func (a *Agent) setupResolvConf(id string) error {
-	servers, err := a.nameservers()
-	if err != nil {
-		return err
-	}
 	if err := os.MkdirAll(filepath.Join(v1.Root, id), 0711); err != nil {
 		return err
 	}
@@ -885,7 +880,7 @@ func (a *Agent) setupResolvConf(id string) error {
 	if err := f.Chmod(0666); err != nil {
 		return err
 	}
-	for _, ns := range servers {
+	for _, ns := range a.nameservers() {
 		if _, err := f.WriteString(fmt.Sprintf("nameserver %s\n", ns)); err != nil {
 			f.Close()
 			return err
@@ -896,12 +891,12 @@ func (a *Agent) setupResolvConf(id string) error {
 }
 
 func (a *Agent) getContainerDiff(ctx context.Context, container containerd.Container) (stateChange, error) {
-	labels, err := c.Labels(ctx)
+	labels, err := container.Labels(ctx)
 	if err != nil {
 		return nil, err
 	}
 	desiredStatus := containerd.ProcessStatus(labels[StatusLabel])
-	if !isSameStatus(ctx, desiredStatus, c) {
+	if !isSameStatus(ctx, desiredStatus, container) {
 		switch desiredStatus {
 		case containerd.Running:
 			return &startDiff{
