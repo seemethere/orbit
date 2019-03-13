@@ -1,13 +1,13 @@
 package main
 
 import (
-	"github.com/stellarproject/orbit/api/v1"
+	v1 "github.com/stellarproject/orbit/api/v1"
 	"github.com/urfave/cli"
 )
 
-var rollbackCommand = cli.Command{
-	Name:  "rollback",
-	Usage: "rollback a container to a previous revision",
+var startCommand = cli.Command{
+	Name:  "start",
+	Usage: "start an existing service",
 	Action: func(clix *cli.Context) error {
 		var (
 			id  = clix.Args().First()
@@ -18,7 +18,7 @@ var rollbackCommand = cli.Command{
 			return err
 		}
 		defer agent.Close()
-		_, err = agent.Rollback(ctx, &v1.RollbackRequest{
+		_, err = agent.Start(ctx, &v1.StartRequest{
 			ID: id,
 		})
 		return err

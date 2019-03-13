@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"os"
 
-	"github.com/stellarproject/orbit/api/v1"
+	v1 "github.com/stellarproject/orbit/api/v1"
 	"github.com/urfave/cli"
 )
 

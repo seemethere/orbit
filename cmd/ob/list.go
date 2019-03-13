@@ -6,14 +6,14 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/stellarproject/orbit/api/v1"
 	units "github.com/docker/go-units"
+	v1 "github.com/stellarproject/orbit/api/v1"
 	"github.com/urfave/cli"
 )
 
 var listCommand = cli.Command{
 	Name:  "list",
-	Usage: "list containers managed via boss",
+	Usage: "list containers",
 	Action: func(clix *cli.Context) error {
 		ctx := Context()
 		agent, err := Agent(clix)

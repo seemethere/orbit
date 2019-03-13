@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/BurntSushi/toml"
-	"github.com/stellarproject/orbit/api/v1"
+	v1 "github.com/stellarproject/orbit/api/v1"
 	"github.com/stellarproject/orbit/cmd"
 	"github.com/urfave/cli"
 )

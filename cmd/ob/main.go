@@ -17,9 +17,9 @@ import (
 
 func main() {
 	app := cli.NewApp()
-	app.Name = "orbit"
+	app.Name = "ob"
 	app.Version = version.Version
-	app.Usage = "run containers like a ross"
+	app.Usage = "taking containers to space"
 	app.Description = cmd.Banner
 	app.Flags = []cli.Flag{
 		cli.BoolFlag{
@@ -30,7 +30,7 @@ func main() {
 			Name:   "agent",
 			Usage:  "agent address",
 			Value:  "0.0.0.0:1337",
-			EnvVar: "BOSS_AGENT",
+			EnvVar: "AGENT_ADDR",
 		},
 		cli.StringFlag{
 			Name:   "sentry-dsn",

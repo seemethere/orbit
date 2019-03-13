@@ -1,13 +1,13 @@
 package main
 
 import (
-	"github.com/stellarproject/orbit/api/v1"
+	v1 "github.com/stellarproject/orbit/api/v1"
 	"github.com/urfave/cli"
 )
 
-var startCommand = cli.Command{
-	Name:  "start",
-	Usage: "start an existing service",
+var stopCommand = cli.Command{
+	Name:  "stop",
+	Usage: "stop a running service",
 	Action: func(clix *cli.Context) error {
 		var (
 			id  = clix.Args().First()
@@ -18,7 +18,7 @@ var startCommand = cli.Command{
 			return err
 		}
 		defer agent.Close()
-		_, err = agent.Start(ctx, &v1.StartRequest{
+		_, err = agent.Stop(ctx, &v1.StopRequest{
 			ID: id,
 		})
 		return err
