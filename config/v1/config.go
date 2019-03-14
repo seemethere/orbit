@@ -1,4 +1,4 @@
-package cmd
+package config
 
 import v1 "github.com/stellarproject/orbit/api/v1"
 

@@ -2,8 +2,8 @@ package main
 
 import (
 	"github.com/BurntSushi/toml"
-	"github.com/stellarproject/orbit/api/v1"
-	"github.com/stellarproject/orbit/cmd"
+	api "github.com/stellarproject/orbit/api/v1"
+	v1 "github.com/stellarproject/orbit/config/v1"
 	"github.com/urfave/cli"
 )
 
@@ -17,7 +17,7 @@ var createCommand = cli.Command{
 		},
 	},
 	Action: func(clix *cli.Context) error {
-		var container cmd.Container
+		var container v1.Container
 		if _, err := toml.DecodeFile(clix.Args().First(), &container); err != nil {
 			return err
 		}
@@ -26,7 +26,7 @@ var createCommand = cli.Command{
 			return err
 		}
 		defer agent.Close()
-		_, err = agent.Create(Context(), &v1.CreateRequest{
+		_, err = agent.Create(Context(), &api.CreateRequest{
 			Container: container.Proto(),
 			Update:    clix.Bool("update"),
 		})
