@@ -48,7 +48,7 @@ func (c *configChange) update(ctx context.Context, container containerd.Containe
 	if err != nil {
 		return err
 	}
-	return container.Update(ctx, opts.WithSetPreviousConfig, opts.WithBossConfig(c.volumeRoot, c.c, image))
+	return container.Update(ctx, opts.WithSetPreviousConfig, opts.WithOrbitConfig(c.volumeRoot, c.c, image))
 }
 
 type filesChange struct {

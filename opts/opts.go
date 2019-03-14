@@ -16,21 +16,21 @@ import (
 	"github.com/containerd/containerd/contrib/seccomp"
 	"github.com/containerd/containerd/oci"
 	"github.com/containerd/typeurl"
-	v1 "github.com/stellarproject/orbit/api/v1"
 	"github.com/gogo/protobuf/types"
 	is "github.com/opencontainers/image-spec/specs-go/v1"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
+	v1 "github.com/stellarproject/orbit/api/v1"
 )
 
 const (
-	CurrentConfig          = "io.boss/container"
-	LastConfig             = "io.boss/container.last"
-	IPLabel                = "io/boss/container.ip"
-	RestoreCheckpointLabel = "io/boss/restore.checkpoint"
+	CurrentConfig          = "io.orbit/container"
+	LastConfig             = "io.orbit/container.last"
+	IPLabel                = "io/orbit/container.ip"
+	RestoreCheckpointLabel = "io/orbit/restore.checkpoint"
 )
 
-// WithBossConfig is a containerd.NewContainerOpts for spec and container configuration
-func WithBossConfig(volumeRoot string, config *v1.Container, image containerd.Image) func(ctx context.Context, client *containerd.Client, c *containers.Container) error {
+// WithOrbitConfig is a containerd.NewContainerOpts for spec and container configuration
+func WithOrbitConfig(volumeRoot string, config *v1.Container, image containerd.Image) func(ctx context.Context, client *containerd.Client, c *containers.Container) error {
 	return func(ctx context.Context, client *containerd.Client, c *containers.Container) error {
 		// generate the spec
 		if err := containerd.WithNewSpec(specOpt(volumeRoot, config, image))(ctx, client, c); err != nil {
@@ -60,7 +60,7 @@ func specOpt(volumeRoot string, config *v1.Container, image containerd.Image) oc
 		oci.WithImageConfigArgs(image, config.Process.Args),
 		oci.WithHostLocaltime,
 		oci.WithNoNewPrivileges,
-		apparmor.WithDefaultProfile("boss"),
+		apparmor.WithDefaultProfile("orbit"),
 		seccomp.WithDefaultProfile(),
 		oci.WithEnv(config.Process.Env),
 		withMounts(config.Mounts),
@@ -73,7 +73,7 @@ func specOpt(volumeRoot string, config *v1.Container, image containerd.Image) oc
 	if config.Network == "host" {
 		opts = append(opts, oci.WithHostHostsFile, oci.WithHostResolvconf, oci.WithHostNamespace(specs.NetworkNamespace))
 	} else if config.Network == "cni" {
-		opts = append(opts, withBossResolvconf, withContainerHostsFile, oci.WithLinuxNamespace(specs.LinuxNamespace{
+		opts = append(opts, withOrbitResolvconf, withContainerHostsFile, oci.WithLinuxNamespace(specs.LinuxNamespace{
 			Type: specs.NetworkNamespace,
 			Path: v1.NetworkPath(config.ID),
 		}),
@@ -300,7 +300,7 @@ func withContainerHostsFile(ctx context.Context, _ oci.Client, c *containers.Con
 	return nil
 }
 
-func withBossResolvconf(ctx context.Context, _ oci.Client, c *containers.Container, s *oci.Spec) error {
+func withOrbitResolvconf(ctx context.Context, _ oci.Client, c *containers.Container, s *oci.Spec) error {
 	s.Mounts = append(s.Mounts, specs.Mount{
 		Destination: "/etc/resolv.conf",
 		Type:        "bind",

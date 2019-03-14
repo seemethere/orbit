@@ -56,7 +56,7 @@ var (
 )
 
 const (
-	MediaTypeContainerInfo = "application/vnd.boss.container.info.v1+json"
+	MediaTypeContainerInfo = "application/vnd.orbit.container.info.v1+json"
 	StatusLabel            = "stellarproject.io/orbit/restart.status"
 )
 
@@ -101,7 +101,7 @@ func (a *Agent) Create(ctx context.Context, req *v1.CreateRequest) (*types.Empty
 	container, err := a.client.NewContainer(ctx,
 		req.Container.ID,
 		flux.WithNewSnapshot(image),
-		opts.WithBossConfig(a.c.VolumeRoot, req.Container, image),
+		opts.WithOrbitConfig(a.c.VolumeRoot, req.Container, image),
 	)
 	if err != nil {
 		return nil, err
@@ -632,7 +632,7 @@ func (a *Agent) Restore(ctx context.Context, req *v1.RestoreRequest) (*v1.Restor
 	}
 	o := []containerd.NewContainerOpts{
 		flux.WithNewSnapshot(image),
-		opts.WithBossConfig(a.c.VolumeRoot, config, image),
+		opts.WithOrbitConfig(a.c.VolumeRoot, config, image),
 	}
 	if req.Live {
 		desc, err := getByMediaType(index, images.MediaTypeContainerd1Checkpoint)
