@@ -9,11 +9,14 @@ import (
 	tasks "github.com/containerd/containerd/api/services/tasks/v1"
 	"github.com/containerd/containerd/content"
 	"github.com/containerd/containerd/leases"
+	"github.com/containerd/containerd/platforms"
 	"github.com/containerd/containerd/plugin"
 	"github.com/containerd/containerd/services"
 	"github.com/containerd/containerd/snapshots"
+	is "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
 	v1 "github.com/stellarproject/orbit/api/v1"
+	"github.com/stellarproject/orbit/version"
 	"google.golang.org/grpc"
 )
 
@@ -27,8 +30,8 @@ func init() {
 			plugin.ServicePlugin,
 		},
 		InitFn: func(ic *plugin.InitContext) (interface{}, error) {
-			// ic.Meta.Platforms = []imagespec.Platform{platforms.DefaultSpec()}
-			//	ic.Meta.Exports = map[string]string{"CRIVersion": constants.CRIVersion}
+			ic.Meta.Platforms = []is.Platform{platforms.DefaultSpec()}
+			ic.Meta.Exports = map[string]string{"Version": version.Version}
 			c := ic.Config.(*Config)
 			servicesOpts, err := getServicesOpts(ic)
 			if err != nil {
