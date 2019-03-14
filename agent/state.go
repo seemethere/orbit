@@ -42,7 +42,7 @@ func (n *nullDiff) apply(_ context.Context) error {
 }
 
 func setupApparmor() error {
-	return apparmor.WithDefaultProfile("boss")(nil, nil, nil, &specs.Spec{
+	return apparmor.WithDefaultProfile("orbit")(nil, nil, nil, &specs.Spec{
 		Process: &specs.Process{},
 	})
 }

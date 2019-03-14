@@ -20,9 +20,9 @@ import (
 const (
 	gcRoot           = "containerd.io/gc.root"
 	timestampFormat  = "01-02-2006-15:04:05"
-	PreviousLabel    = "boss.io/revision.previous"
-	ImageLabel       = "boss.io/revision.image"
-	ContainerIDLabel = "boss.io/revision.container"
+	PreviousLabel    = "stellarproject.io/orbit/revision.previous"
+	ImageLabel       = "stellarproject.io/orbit/revision.image"
+	ContainerIDLabel = "stellarproject.io/orbit/revision.container"
 )
 
 var ErrNoPreviousRevision = errors.New("no previous revision")
@@ -108,7 +108,7 @@ func newRevision(id string) *Revision {
 	now := time.Now()
 	return &Revision{
 		Timestamp: now,
-		Key:       fmt.Sprintf("boss.io.%s.%s", id, now.Format(timestampFormat)),
+		Key:       fmt.Sprintf("stellarproject.io.orbit.%s.%s", id, now.Format(timestampFormat)),
 	}
 }
 

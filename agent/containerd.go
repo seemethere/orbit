@@ -24,7 +24,7 @@ import (
 func init() {
 	plugin.Register(&plugin.Registration{
 		Type:   plugin.GRPCPlugin,
-		ID:     "boss",
+		ID:     "orbit",
 		Config: &Config{},
 		Requires: []plugin.Type{
 			plugin.ServicePlugin,

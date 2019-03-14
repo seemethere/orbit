@@ -7,9 +7,9 @@ import (
 
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/version"
+	raven "github.com/getsentry/raven-go"
 	"github.com/stellarproject/orbit/cmd"
 	bv "github.com/stellarproject/orbit/version"
-	raven "github.com/getsentry/raven-go"
 	"github.com/urfave/cli"
 )
 
@@ -28,9 +28,9 @@ func main() {
 		skel.PluginMain(dhcpAdd, dhcpDelete, version.All)
 	default:
 		app := cli.NewApp()
-		app.Name = "boss-network"
+		app.Name = "orbit-network"
 		app.Version = bv.Version
-		app.Usage = "run containers like a ross"
+		app.Usage = "orbit network namespace creation"
 		app.Description = cmd.Banner
 		app.Flags = []cli.Flag{
 			cli.BoolFlag{
