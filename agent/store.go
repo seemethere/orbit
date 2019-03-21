@@ -9,7 +9,7 @@ import (
 	"github.com/gomodule/redigo/redis"
 	lconfig "github.com/siddontang/ledisdb/config"
 	"github.com/siddontang/ledisdb/server"
-	"github.com/stellarproject/orbit/api/v1"
+	v1 "github.com/stellarproject/orbit/api/v1"
 )
 
 func newStore(root string) (*server.App, error) {
@@ -39,13 +39,17 @@ func newStoreClient() *store {
 	}
 }
 
+const (
+	serviceFormat = "orbit:%s"
+)
+
 type store struct {
 	pool *redis.Pool
 }
 
-const (
-	serviceFormat = "orbit:%s"
-)
+func (s *store) Close() error {
+	return s.pool.Close()
+}
 
 func (s *store) Register(id string, service *v1.Service) error {
 	data, err := proto.Marshal(service)

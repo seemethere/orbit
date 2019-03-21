@@ -36,6 +36,7 @@ import (
 	ver "github.com/opencontainers/image-spec/specs-go"
 	is "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
+	"github.com/siddontang/ledisdb/server"
 	"github.com/sirupsen/logrus"
 	v1 "github.com/stellarproject/orbit/api/v1"
 	"github.com/stellarproject/orbit/cni"
@@ -72,7 +73,8 @@ func New(ctx context.Context, c *Config, client *containerd.Client) (*Agent, err
 	if err := setupApparmor(); err != nil {
 		return nil, err
 	}
-	if _, err := newStore(c.Root); err != nil {
+	s, err := newStore(c.Root)
+	if err != nil {
 		return nil, err
 	}
 	for _, r := range c.PlainRemotes {
@@ -82,6 +84,7 @@ func New(ctx context.Context, c *Config, client *containerd.Client) (*Agent, err
 		config: c,
 		client: client,
 		store:  newStoreClient(),
+		server: s,
 	}
 	go a.startSupervisorLoop(namespaces.WithNamespace(ctx, config.DefaultNamespace), c.Interval.Duration)
 	return a, nil
@@ -91,7 +94,16 @@ type Agent struct {
 	client       *containerd.Client
 	config       *Config
 	store        *store
+	server       *server.App
 	supervisorMu sync.Mutex
+}
+
+func (a *Agent) Close() error {
+	a.supervisorMu.Lock()
+
+	a.store.Close()
+	a.server.Close()
+	return nil
 }
 
 func (a *Agent) Create(ctx context.Context, req *v1.CreateRequest) (*types.Empty, error) {
