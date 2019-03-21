@@ -30,6 +30,7 @@ import (
 	"github.com/containerd/containerd/rootfs"
 	"github.com/containerd/containerd/runtime/v2/runc/options"
 	"github.com/containerd/containerd/snapshots"
+	gocni "github.com/containerd/go-cni"
 	"github.com/containerd/typeurl"
 	"github.com/gogo/protobuf/types"
 	ver "github.com/opencontainers/image-spec/specs-go"
@@ -37,6 +38,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	v1 "github.com/stellarproject/orbit/api/v1"
+	"github.com/stellarproject/orbit/cni"
 	"github.com/stellarproject/orbit/config"
 	"github.com/stellarproject/orbit/flux"
 	"github.com/stellarproject/orbit/opts"
@@ -55,6 +57,11 @@ var (
 
 	empty = &types.Empty{}
 )
+
+type network interface {
+	Create(context.Context, containerd.Container) (string, error)
+	Remove(context.Context, containerd.Container) error
+}
 
 const (
 	MediaTypeContainerInfo = "application/vnd.orbit.container.info.v1+json"
@@ -136,7 +143,7 @@ func (a *Agent) Delete(ctx context.Context, req *v1.DeleteRequest) (*types.Empty
 	if err != nil {
 		return nil, errors.Wrap(err, "load config")
 	}
-	network, err := getNetwork(a.config.Iface, config.Network, a.config.CNI)
+	network, err := a.getNetwork(config.Network)
 	if err != nil {
 		return nil, errors.Wrap(err, "get network")
 	}
@@ -447,24 +454,10 @@ func (a *Agent) Rollback(ctx context.Context, req *v1.RollbackRequest) (*v1.Roll
 	return &v1.RollbackResponse{}, nil
 }
 
-func (a *Agent) PushBuild(ctx context.Context, req *v1.PushBuildRequest) (*types.Empty, error) {
-	if req.Ref == "" {
-		return nil, ErrNoRef
-	}
-	return a.Push(ctx, &v1.PushRequest{
-		Ref:   req.Ref,
-		Build: true,
-	})
-}
-
 func (a *Agent) Push(ctx context.Context, req *v1.PushRequest) (*types.Empty, error) {
+	ctx = relayContext(ctx)
 	if req.Ref == "" {
 		return nil, ErrNoRef
-	}
-	if req.Build {
-		ctx = namespaces.WithNamespace(ctx, "buildkit")
-	} else {
-		ctx = relayContext(ctx)
 	}
 	image, err := a.client.GetImage(ctx, req.Ref)
 	if err != nil {
@@ -799,7 +792,7 @@ func (a *Agent) start(ctx context.Context, container containerd.Container) error
 	if err := a.setupRuntimeFiles(ctx, container); err != nil {
 		return err
 	}
-	network, err := getNetwork(a.config.Iface, config.Network, a.config.CNI)
+	network, err := a.getNetwork(config.Network)
 	if err != nil {
 		return err
 	}
@@ -913,6 +906,51 @@ func (a *Agent) getContainerDiff(ctx context.Context, container containerd.Conta
 		}
 	}
 	return sameDiff(), nil
+}
+
+func (a *Agent) getNetwork(network *types.Any) (network, error) {
+	if network == nil {
+		return &none{}, nil
+	}
+	v, err := typeurl.UnmarshalAny(network)
+	if err != nil {
+		return nil, err
+	}
+
+	var networkType string
+	switch c := v.(type) {
+	case *v1.HostNetwork:
+		networkType = "host"
+		ip, err := util.GetIP(a.config.Iface)
+		if err != nil {
+			return nil, err
+		}
+		return &host{
+			ip: ip,
+		}, nil
+	case *v1.CNINetwork:
+		networkType = c.Type
+		if c.Type == "macvlan" && a.config.BridgeAddress == "" {
+			return nil, errors.New("bridge_address must be specified with macvlan")
+		}
+		if c.Name == "" {
+			c.Name = a.config.Domain
+		}
+		if c.Master == "" {
+			c.Master = a.config.Iface
+		}
+		n, err := gocni.New(
+			gocni.WithPluginDir([]string{"/usr/local/bin", "/opt/containerd/bin"}),
+			gocni.WithConf(c.MarshalCNI()),
+			gocni.WithLoNetwork,
+		)
+		if err != nil {
+			return nil, err
+		}
+		return cni.New(networkType, a.config.Iface, a.config.BridgeAddress, n)
+	default:
+		return nil, errors.Errorf("unknown network type %s", network.TypeUrl)
+	}
 }
 
 func withStatus(status containerd.ProcessStatus) func(context.Context, *containerd.Client, *containers.Container) error {

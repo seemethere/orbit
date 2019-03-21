@@ -1,10 +1,8 @@
 package config
 
 import (
-	"context"
 	"path/filepath"
 
-	"github.com/containerd/containerd"
 	"github.com/stellarproject/orbit/api/v1"
 )
 
@@ -23,11 +21,6 @@ func StatePath(id string) string {
 type Register interface {
 	Register(id, name, ip string, s *v1.Service) error
 	Deregister(id, name string) error
-}
-
-type Network interface {
-	Create(context.Context, containerd.Container) (string, error)
-	Remove(context.Context, containerd.Container) error
 }
 
 func NetworkPath(id string) string {

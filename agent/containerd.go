@@ -18,6 +18,7 @@ import (
 	v1 "github.com/stellarproject/orbit/api/v1"
 	"github.com/stellarproject/orbit/config"
 	"github.com/stellarproject/orbit/version"
+	"github.com/vishvananda/netlink"
 	"google.golang.org/grpc"
 )
 
@@ -32,10 +33,17 @@ func init() {
 		},
 		InitFn: func(ic *plugin.InitContext) (interface{}, error) {
 			ic.Meta.Platforms = []is.Platform{platforms.DefaultSpec()}
-			ic.Meta.Exports = map[string]string{
-				"Version": version.Version,
-			}
+			exports := make(map[string]string)
+			exports["version"] = version.Version
 			c := ic.Config.(*Config)
+			if c.Iface == "" {
+				i, err := getDefaultIface()
+				if err != nil {
+					return nil, err
+				}
+				c.Iface = i
+			}
+			exports["interface"] = c.Iface
 			servicesOpts, err := getServicesOpts(ic)
 			if err != nil {
 				return nil, err
@@ -48,9 +56,27 @@ func init() {
 			if err != nil {
 				return nil, err
 			}
+			ic.Meta.Exports = exports
 			return New(ic.Context, c, nil, client)
 		},
 	})
+}
+
+func getDefaultIface() (string, error) {
+	routes, err := netlink.RouteList(nil, netlink.FAMILY_V4)
+	if err != nil {
+		return "", err
+	}
+	for _, r := range routes {
+		if r.Gw != nil {
+			link, err := netlink.LinkByIndex(r.LinkIndex)
+			if err != nil {
+				return "", err
+			}
+			return link.Attrs().Name, nil
+		}
+	}
+	return "", errors.New("no default route found")
 }
 
 func (a *Agent) Register(server *grpc.Server) error {

@@ -9,7 +9,7 @@ import (
 	"syscall"
 
 	"github.com/containerd/containerd"
-	networking "github.com/containerd/go-cni"
+	gocni "github.com/containerd/go-cni"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/stellarproject/orbit/config"
@@ -18,7 +18,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func New(t, iface, mvlanAddress string, n networking.CNI) (config.Network, error) {
+func New(t, iface, mvlanAddress string, n gocni.CNI) (*cni, error) {
 	if t == "macvlan" {
 		if err := route.Create(iface, mvlanAddress); err != nil {
 			return nil, err
@@ -31,7 +31,7 @@ func New(t, iface, mvlanAddress string, n networking.CNI) (config.Network, error
 }
 
 type cni struct {
-	network networking.CNI
+	network gocni.CNI
 	nt      string
 }
 
@@ -79,7 +79,7 @@ func (n *cni) Create(ctx context.Context, task containerd.Container) (string, er
 func (n *cni) Remove(ctx context.Context, c containerd.Container) error {
 	path := config.NetworkPath(c.ID())
 	if err := n.network.Remove(c.ID(), path); err != nil {
-		logrus.WithError(err).Error("remove cni networking")
+		logrus.WithError(err).Error("remove cni gocni")
 	}
 	if err := unix.Unmount(path, 0); err != nil {
 		logrus.WithError(err).Error("unmount netns")

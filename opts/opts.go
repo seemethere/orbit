@@ -16,6 +16,7 @@ import (
 	"github.com/containerd/containerd/contrib/seccomp"
 	"github.com/containerd/containerd/oci"
 	"github.com/containerd/typeurl"
+	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
 	is "github.com/opencontainers/image-spec/specs-go/v1"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
@@ -68,12 +69,12 @@ func specOpt(root, volumeRoot string, container *v1.Container, image containerd.
 		withVolumes(volumeRoot, container.Volumes),
 		withConfigs(container.Configs),
 	}
-	if container.Privileged {
+	if container.Security.Privileged {
 		opts = append(opts, oci.WithPrivileged)
 	}
-	if container.Network == "host" {
+	if container.Network.TypeUrl == proto.MessageName(&v1.HostNetwork{}) {
 		opts = append(opts, oci.WithHostHostsFile, oci.WithHostResolvconf, oci.WithHostNamespace(specs.NetworkNamespace))
-	} else if container.Network == "cni" {
+	} else if container.Network.TypeUrl == proto.MessageName(&v1.CNINetwork{}) {
 		opts = append(opts, withOrbitResolvconf(root), withContainerHostsFile(root), oci.WithLinuxNamespace(specs.LinuxNamespace{
 			Type: specs.NetworkNamespace,
 			Path: config.NetworkPath(container.ID),
@@ -98,7 +99,7 @@ func specOpt(root, volumeRoot string, container *v1.Container, image containerd.
 		opts = append(opts, oci.WithRootFSReadonly())
 	}
 	// make sure this opt is run after the user has been set
-	opts = append(opts, withProcessCaps(container.Process.Capabilities))
+	opts = append(opts, withProcessCaps(container.Security.Capabilities))
 	return oci.Compose(opts...)
 }
 

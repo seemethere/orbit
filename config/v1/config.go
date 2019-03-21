@@ -1,43 +1,90 @@
 package config
 
-import v1 "github.com/stellarproject/orbit/api/v1"
+import (
+	"github.com/containerd/typeurl"
+	v1 "github.com/stellarproject/orbit/api/v1"
+)
 
 const Version = "v1"
 
 type Container struct {
-	ConfigVersion string             `toml:"config_version"`
-	ID            string             `toml:"id"`
-	Image         string             `toml:"image"`
-	Resources     *Resources         `toml:"resources"`
-	GPUs          *GPUs              `toml:"gpus"`
-	Mounts        []Mount            `toml:"mounts"`
-	Env           []string           `toml:"env"`
-	Args          []string           `toml:"args"`
-	UID           *int               `toml:"uid"`
-	GID           *int               `toml:"gid"`
-	Network       string             `toml:"network"`
-	Services      map[string]Service `toml:"services"`
-	Configs       map[string]File    `toml:"configs"`
-	Readonly      bool               `toml:"readonly"`
-	Capabilities  []string           `toml:"caps"`
-	Volumes       map[string]Volume  `toml:"volumes"`
-	Privileged    bool               `toml:"privileged"`
+	ConfigVersion string `toml:"config_version"`
+
+	ID           string             `toml:"id"`
+	Image        string             `toml:"image"`
+	Resources    *Resources         `toml:"resources"`
+	GPUs         *GPUs              `toml:"gpus"`
+	Mounts       []Mount            `toml:"mounts"`
+	Env          []string           `toml:"env"`
+	Args         []string           `toml:"args"`
+	UID          *int               `toml:"uid"`
+	GID          *int               `toml:"gid"`
+	Network      *Network           `toml:"network"`
+	Services     map[string]Service `toml:"services"`
+	Configs      map[string]File    `toml:"configs"`
+	Readonly     bool               `toml:"readonly"`
+	Capabilities []string           `toml:"caps"`
+	Volumes      map[string]Volume  `toml:"volumes"`
+	Privileged   bool               `toml:"privileged"`
+}
+
+type Network struct {
+	Type   string `toml:"type"`
+	Name   string `toml:"name"`
+	Master string `toml:"master"`
+	Bridge string `toml:"bridge"`
+	IPAM   IPAM   `toml:"ipam"`
+}
+
+type IPAM struct {
+	Type   string `toml:"type"`
+	Subnet string `toml:"subnet"`
 }
 
 func (c *Container) Proto() *v1.Container {
 	container := &v1.Container{
-		ID:      c.ID,
-		Image:   c.Image,
-		Network: c.Network,
+		ID:    c.ID,
+		Image: c.Image,
 		Process: &v1.Process{
-			Args:         c.Args,
-			Env:          c.Env,
+			Args: c.Args,
+			Env:  c.Env,
+		},
+		Readonly: c.Readonly,
+		Services: make(map[string]*v1.Service),
+		Configs:  make(map[string]*v1.Config),
+		Security: &v1.Security{
+			Privileged:   c.Privileged,
 			Capabilities: c.Capabilities,
 		},
-		Readonly:   c.Readonly,
-		Privileged: c.Privileged,
-		Services:   make(map[string]*v1.Service),
-		Configs:    make(map[string]*v1.Config),
+	}
+	if c.Network != nil {
+		n := c.Network
+		switch n.Type {
+		case "host":
+			any, err := typeurl.MarshalAny(&v1.HostNetwork{})
+			if err != nil {
+				panic(err)
+			}
+			container.Network = any
+		default:
+			cni := &v1.CNINetwork{
+				Type:   n.Type,
+				Name:   n.Name,
+				Master: n.Master,
+				Bridge: n.Bridge,
+			}
+			if n.IPAM.Type != "" {
+				cni.IPAM = &v1.CNIIPAM{
+					Type:   n.IPAM.Type,
+					Subnet: n.IPAM.Subnet,
+				}
+			}
+			any, err := typeurl.MarshalAny(cni)
+			if err != nil {
+				panic(err)
+			}
+			container.Network = any
+		}
 	}
 	for _, m := range c.Mounts {
 		container.Mounts = append(container.Mounts, &v1.Mount{
