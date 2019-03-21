@@ -6,10 +6,9 @@ import (
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/containers"
 	"github.com/containerd/containerd/errdefs"
-	"github.com/crosbymichael/boss/api/v1"
-	"github.com/crosbymichael/boss/config"
-	"github.com/crosbymichael/boss/flux"
-	"github.com/crosbymichael/boss/opts"
+	v1 "github.com/stellarproject/orbit/api/v1"
+	"github.com/stellarproject/orbit/flux"
+	"github.com/stellarproject/orbit/opts"
 )
 
 type change interface {
@@ -49,16 +48,16 @@ func (c *configChange) update(ctx context.Context, container containerd.Containe
 	if err != nil {
 		return err
 	}
-	return container.Update(ctx, opts.WithSetPreviousConfig, opts.WithBossConfig(c.volumeRoot, c.c, image))
+	return container.Update(ctx, opts.WithSetPreviousConfig, opts.WithOrbitConfig(c.volumeRoot, c.c, image))
 }
 
 type filesChange struct {
-	c     *v1.Container
-	store config.ConfigStore
+	c *v1.Container
 }
 
 func (c *filesChange) update(ctx context.Context, container containerd.Container) error {
-	return c.store.Write(ctx, c.c)
+	return nil
+	// return c.store.Write(ctx, c.c)
 }
 
 func pauseAndRun(ctx context.Context, container containerd.Container, fn func() error) error {

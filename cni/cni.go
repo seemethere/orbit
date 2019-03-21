@@ -10,11 +10,11 @@ import (
 
 	"github.com/containerd/containerd"
 	networking "github.com/containerd/go-cni"
-	v1 "github.com/crosbymichael/boss/api/v1"
-	"github.com/crosbymichael/boss/opts"
-	"github.com/crosbymichael/boss/route"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	v1 "github.com/stellarproject/orbit/api/v1"
+	"github.com/stellarproject/orbit/opts"
+	"github.com/stellarproject/orbit/route"
 	"golang.org/x/sys/unix"
 )
 
@@ -101,7 +101,7 @@ func (n *cni) Remove(ctx context.Context, c containerd.Container) error {
 }
 
 func createNetns(path string) error {
-	cmd := exec.Command("boss-network", "create", path)
+	cmd := exec.Command("orbit-network", "create", path)
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Cloneflags: unix.CLONE_NEWNET,
 	}

@@ -1,7 +1,7 @@
 package api
 
 import (
-	"github.com/crosbymichael/boss/api/v1"
+	"github.com/stellarproject/orbit/api/v1"
 	"google.golang.org/grpc"
 )
 
