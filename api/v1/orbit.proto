@@ -62,7 +62,7 @@ message ContainerInfo {
 	string id = 1 [(gogoproto.customname) = "ID"];
 	string image = 2;
 	string status = 3;
-	Service service = 4;
+	repeated Service services = 4;
 	uint64 cpu = 5;
 	double memory_usage = 6;
 	double memory_limit = 7;

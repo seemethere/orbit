@@ -246,11 +246,21 @@ func (a *Agent) info(ctx context.Context, c containerd.Container) (*v1.Container
 		memory = float64(cg.Memory.Usage.Usage - cg.Memory.TotalCache)
 		limit  = float64(cg.Memory.Usage.Limit)
 	)
+	var services []*v1.Service
+	for _, s := range cfg.Services {
+		services = append(services, &v1.Service{
+			Name:  s.Name,
+			IP:    info.Labels[opts.IPLabel],
+			Port:  s.Port,
+			Url:   s.Url,
+			Check: s.Check,
+		})
+	}
 	return &v1.ContainerInfo{
-		ID:     c.ID(),
-		Image:  info.Image,
-		Status: string(status.Status),
-		//IP:          info.Labels[opts.IPLabel],
+		ID:          c.ID(),
+		Image:       info.Image,
+		Status:      string(status.Status),
+		Services:    services,
 		Cpu:         cpu,
 		MemoryUsage: memory,
 		MemoryLimit: limit,

@@ -26,8 +26,8 @@ import (
 const (
 	CurrentConfig          = "io.orbit/container"
 	LastConfig             = "io.orbit/container.last"
-	IPLabel                = "io/orbit/container.ip"
-	RestoreCheckpointLabel = "io/orbit/restore.checkpoint"
+	IPLabel                = "io.orbit/container.ip"
+	RestoreCheckpointLabel = "io.orbit/restore.checkpoint"
 )
 
 type Paths struct {

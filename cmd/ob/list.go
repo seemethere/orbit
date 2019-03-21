@@ -29,11 +29,15 @@ var listCommand = cli.Command{
 		const tfmt = "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%d\n"
 		fmt.Fprint(w, "ID\tIMAGE\tSTATUS\tIP\tCPU\tMEMORY\tPIDS\tSIZE\tREVISIONS\n")
 		for _, c := range resp.Containers {
+			ip := "none"
+			if len(c.Services) > 0 {
+				ip = c.Services[0].IP
+			}
 			fmt.Fprintf(w, tfmt,
 				c.ID,
 				c.Image,
 				c.Status,
-				"TODO", // c.IP,
+				ip,
 				time.Duration(int64(c.Cpu)),
 				fmt.Sprintf("%s/%s", units.HumanSize(c.MemoryUsage), units.HumanSize(c.MemoryLimit)),
 				fmt.Sprintf("%d/%d", c.PidUsage, c.PidLimit),
