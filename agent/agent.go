@@ -72,6 +72,9 @@ func New(ctx context.Context, c *Config, client *containerd.Client) (*Agent, err
 	if err := setupApparmor(); err != nil {
 		return nil, err
 	}
+	if _, err := newStore(c.Root); err != nil {
+		return nil, err
+	}
 	for _, r := range c.PlainRemotes {
 		plainRemotes[r] = true
 	}
@@ -80,7 +83,7 @@ func New(ctx context.Context, c *Config, client *containerd.Client) (*Agent, err
 		client: client,
 		store:  newStoreClient(),
 	}
-	go a.startSupervisorLoop(ctx, c.Interval.Duration)
+	go a.startSupervisorLoop(namespaces.WithNamespace(ctx, config.DefaultNamespace), c.Interval.Duration)
 	return a, nil
 }
 
@@ -830,6 +833,7 @@ func (a *Agent) stop(ctx context.Context, container containerd.Container) error 
 	logrus.WithField("id", container.ID()).Debug("stopping container")
 	a.supervisorMu.Lock()
 	defer a.supervisorMu.Unlock()
+
 	if err := container.Update(ctx, withStatus(containerd.Stopped)); err != nil {
 		return err
 	}
@@ -842,7 +846,7 @@ func (a *Agent) stop(ctx context.Context, container containerd.Container) error 
 			}
 			return err
 		}
-		if err := task.Kill(ctx, syscall.SIGKILL, containerd.WithKillAll); err != nil {
+		if err := task.Kill(ctx, syscall.SIGKILL); err != nil {
 			if _, derr := task.Delete(ctx); derr == nil {
 				return nil
 			}

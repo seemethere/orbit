@@ -44,5 +44,5 @@ FROM scratch
 
 COPY --from=containerd /go/src/github.com/containerd/containerd/bin/* /bin/
 COPY --from=containerd /usr/local/sbin/runc /sbin/
-COPY --from=orbit /go/src/github.com/stellarproject/orbit/bin/orbit /bin/
-COPY --from=orbit /go/src/github.com/stellarproject/orbit/orbit-linux-amd64.so /plugins/
+COPY --from=orbit /go/src/github.com/stellarproject/orbit/bin/* /bin/
+COPY --from=orbit /go/src/github.com/stellarproject/orbit/plugins/* /plugins/

@@ -56,6 +56,7 @@ func init() {
 			c.Root = ic.Root
 			c.State = ic.State
 			exports["interface"] = c.Iface
+			exports["domain"] = c.Domain
 			servicesOpts, err := getServicesOpts(ic)
 			if err != nil {
 				return nil, err

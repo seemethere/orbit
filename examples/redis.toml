@@ -1,6 +1,13 @@
 id = "redis"
 image = "docker.io/library/redis:4.0-alpine"
-network = ""
+
+[network]
+	type = "bridge"
+	name = "boss"
+	bridge = "boss0"
+	[network.ipam]
+		type = "host-local"
+		subnet = "10.10.0.0/16"
 
 [resources]
 	cpu = 1.5

@@ -37,11 +37,11 @@ type Paths struct {
 }
 
 func (p Paths) networkPath(id string) string {
-	return filepath.Join(p.State, id, "net")
+	return filepath.Join(p.State, "net")
 }
 
 func (p Paths) configPath(id, name string) string {
-	return filepath.Join(p.State, id, "configs", name)
+	return filepath.Join(p.State, "configs", name)
 }
 
 // WithOrbitConfig is a containerd.NewContainerOpts for spec and container configuration

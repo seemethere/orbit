@@ -16,7 +16,6 @@ type Config struct {
 	Iface         string   `toml:"iface"`
 	Domain        string   `toml:"domain,omitempty" json:"-"` // TODO: hostname and domain name
 	Nameservers   []string `toml:"nameservers"`
-	Timezone      string   `toml:"timezone"`
 	PlainRemotes  []string `toml:"plain_remotes"`
 	VolumeRoot    string   `toml:"volume_root"`
 	Interval      duration `toml:"supervisor_interval"`
