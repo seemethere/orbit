@@ -8,13 +8,14 @@ import (
 	"github.com/containerd/containerd"
 	gocni "github.com/containerd/go-cni"
 	"github.com/pkg/errors"
-	v1 "github.com/stellarproject/orbit/api/v1"
 	"github.com/stellarproject/orbit/cni"
+	"github.com/stellarproject/orbit/config"
 	"github.com/stellarproject/orbit/util"
 )
 
 type Config struct {
-	ID           string   `toml:"id"`    //TODO: remove for hostname
+	ID           string   `toml:"id"` //TODO: remove for hostname
+	Root         string   `toml:"-"`
 	Iface        string   `toml:"iface"` // TODO: dynamic public route
 	CNI          *CNI     `toml:"cni"`   // TODO: move networking to container
 	Nameservers  []string `toml:"nameservers"`
@@ -85,7 +86,7 @@ func (n *none) Remove(_ context.Context, _ containerd.Container) error {
 	return nil
 }
 
-func getNetwork(publicInterface, networkType string, c *CNI) (v1.Network, error) {
+func getNetwork(publicInterface, networkType string, c *CNI) (config.Network, error) {
 	ip, err := util.GetIP(publicInterface)
 	if err != nil {
 		return nil, err

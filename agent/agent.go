@@ -37,6 +37,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	v1 "github.com/stellarproject/orbit/api/v1"
+	"github.com/stellarproject/orbit/config"
 	"github.com/stellarproject/orbit/flux"
 	"github.com/stellarproject/orbit/opts"
 	"github.com/stellarproject/orbit/util"
@@ -60,7 +61,7 @@ const (
 	StatusLabel            = "stellarproject.io/orbit/restart.status"
 )
 
-func New(ctx context.Context, c *Config, register v1.Register, client *containerd.Client) (*Agent, error) {
+func New(ctx context.Context, c *Config, register config.Register, client *containerd.Client) (*Agent, error) {
 	if err := setupApparmor(); err != nil {
 		return nil, err
 	}
@@ -68,7 +69,7 @@ func New(ctx context.Context, c *Config, register v1.Register, client *container
 		plainRemotes[r] = true
 	}
 	a := &Agent{
-		c:        c,
+		config:   c,
 		client:   client,
 		register: register,
 	}
@@ -78,8 +79,8 @@ func New(ctx context.Context, c *Config, register v1.Register, client *container
 
 type Agent struct {
 	client       *containerd.Client
-	c            *Config
-	register     v1.Register
+	config       *Config
+	register     config.Register
 	supervisorMu sync.Mutex
 }
 
@@ -101,7 +102,7 @@ func (a *Agent) Create(ctx context.Context, req *v1.CreateRequest) (*types.Empty
 	container, err := a.client.NewContainer(ctx,
 		req.Container.ID,
 		flux.WithNewSnapshot(image),
-		opts.WithOrbitConfig(a.c.VolumeRoot, req.Container, image),
+		opts.WithOrbitConfig(filepath.Join(a.config.Root, req.Container.ID), a.config.VolumeRoot, req.Container, image),
 	)
 	if err != nil {
 		return nil, err
@@ -135,7 +136,7 @@ func (a *Agent) Delete(ctx context.Context, req *v1.DeleteRequest) (*types.Empty
 	if err != nil {
 		return nil, errors.Wrap(err, "load config")
 	}
-	network, err := getNetwork(a.c.Iface, config.Network, a.c.CNI)
+	network, err := getNetwork(a.config.Iface, config.Network, a.config.CNI)
 	if err != nil {
 		return nil, errors.Wrap(err, "get network")
 	}
@@ -362,7 +363,8 @@ func (a *Agent) Update(ctx context.Context, req *v1.UpdateRequest) (*v1.UpdateRe
 	changes = append(changes, &configChange{
 		client:     a.client,
 		c:          req.Container,
-		volumeRoot: a.c.VolumeRoot,
+		volumeRoot: a.config.VolumeRoot,
+		root:       filepath.Join(a.config.Root, req.Container.ID),
 	})
 	changes = append(changes, &filesChange{
 		c: req.Container,
@@ -632,7 +634,7 @@ func (a *Agent) Restore(ctx context.Context, req *v1.RestoreRequest) (*v1.Restor
 	}
 	o := []containerd.NewContainerOpts{
 		flux.WithNewSnapshot(image),
-		opts.WithOrbitConfig(a.c.VolumeRoot, config, image),
+		opts.WithOrbitConfig(filepath.Join(a.config.Root, c.ID), a.config.VolumeRoot, config, image),
 	}
 	if req.Live {
 		desc, err := getByMediaType(index, images.MediaTypeContainerd1Checkpoint)
@@ -797,7 +799,7 @@ func (a *Agent) start(ctx context.Context, container containerd.Container) error
 	if err := a.setupRuntimeFiles(ctx, container); err != nil {
 		return err
 	}
-	network, err := getNetwork(a.c.Iface, config.Network, a.c.CNI)
+	network, err := getNetwork(a.config.Iface, config.Network, a.config.CNI)
 	if err != nil {
 		return err
 	}
@@ -859,7 +861,7 @@ func (a *Agent) setupRuntimeFiles(ctx context.Context, container containerd.Cont
 }
 
 func (a *Agent) nameservers() []string {
-	ns := a.c.Nameservers
+	ns := a.config.Nameservers
 	if len(ns) == 0 {
 		ns = []string{
 			"8.8.8.8",
@@ -870,7 +872,7 @@ func (a *Agent) nameservers() []string {
 }
 
 func (a *Agent) setupResolvConf(id string) error {
-	if err := os.MkdirAll(filepath.Join(v1.Root, id), 0711); err != nil {
+	if err := os.MkdirAll(filepath.Join(a.config.Root, id), 0711); err != nil {
 		return err
 	}
 	f, err := ioutil.TempFile("", "orbit-resolvconf")
@@ -887,7 +889,7 @@ func (a *Agent) setupResolvConf(id string) error {
 		}
 	}
 	f.Close()
-	return os.Rename(f.Name(), filepath.Join(v1.Root, id, "resolv.conf"))
+	return os.Rename(f.Name(), filepath.Join(a.config.Root, id, "resolv.conf"))
 }
 
 func (a *Agent) getContainerDiff(ctx context.Context, container containerd.Container) (stateChange, error) {
@@ -972,7 +974,7 @@ func decodeIndex(ctx context.Context, store content.Provider, desc is.Descriptor
 }
 
 func relayContext(ctx context.Context) context.Context {
-	return namespaces.WithNamespace(ctx, v1.DefaultNamespace)
+	return namespaces.WithNamespace(ctx, config.DefaultNamespace)
 }
 
 func getByMediaType(index *is.Index, mt string) (*is.Descriptor, error) {

@@ -7,6 +7,7 @@ import (
 	"github.com/containerd/containerd/containers"
 	"github.com/containerd/containerd/errdefs"
 	v1 "github.com/stellarproject/orbit/api/v1"
+	"github.com/stellarproject/orbit/config"
 	"github.com/stellarproject/orbit/flux"
 	"github.com/stellarproject/orbit/opts"
 )
@@ -29,7 +30,7 @@ func (c *imageUpdateChange) update(ctx context.Context, container containerd.Con
 }
 
 type deregisterChange struct {
-	register v1.Register
+	register config.Register
 	name     string
 }
 
@@ -41,6 +42,7 @@ type configChange struct {
 	c          *v1.Container
 	client     *containerd.Client
 	volumeRoot string
+	root       string
 }
 
 func (c *configChange) update(ctx context.Context, container containerd.Container) error {
@@ -48,7 +50,7 @@ func (c *configChange) update(ctx context.Context, container containerd.Containe
 	if err != nil {
 		return err
 	}
-	return container.Update(ctx, opts.WithSetPreviousConfig, opts.WithOrbitConfig(c.volumeRoot, c.c, image))
+	return container.Update(ctx, opts.WithSetPreviousConfig, opts.WithOrbitConfig(c.root, c.volumeRoot, c.c, image))
 }
 
 type filesChange struct {

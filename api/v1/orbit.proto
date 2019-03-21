@@ -142,10 +142,18 @@ message MigrateRequest {
 message MigrateResponse {
 }
 
+message Network {
+
+}
+
+message Security {
+	bool privileged = 1;
+}
+
 message Container {
 	string id = 1 [(gogoproto.customname) = "ID"];;
 	string image = 2;
-	string network = 3;
+	Network network = 3;
 	Process process = 4;
 	repeated Mount mounts = 5;
 	Resources resources = 6;
@@ -154,7 +162,7 @@ message Container {
 	map<string, Config> configs = 9;
 	bool readonly = 10;
 	repeated Volume volumes = 11;
-	bool privileged = 12;
+	Security security = 12;
 }
 
 message Volume {

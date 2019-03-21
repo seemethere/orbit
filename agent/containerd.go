@@ -16,6 +16,7 @@ import (
 	is "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
 	v1 "github.com/stellarproject/orbit/api/v1"
+	"github.com/stellarproject/orbit/config"
 	"github.com/stellarproject/orbit/version"
 	"google.golang.org/grpc"
 )
@@ -31,7 +32,9 @@ func init() {
 		},
 		InitFn: func(ic *plugin.InitContext) (interface{}, error) {
 			ic.Meta.Platforms = []is.Platform{platforms.DefaultSpec()}
-			ic.Meta.Exports = map[string]string{"Version": version.Version}
+			ic.Meta.Exports = map[string]string{
+				"Version": version.Version,
+			}
 			c := ic.Config.(*Config)
 			servicesOpts, err := getServicesOpts(ic)
 			if err != nil {
@@ -39,7 +42,7 @@ func init() {
 			}
 			client, err := containerd.New(
 				"",
-				containerd.WithDefaultNamespace(v1.DefaultNamespace),
+				containerd.WithDefaultNamespace(config.DefaultNamespace),
 				containerd.WithServices(servicesOpts...),
 			)
 			if err != nil {

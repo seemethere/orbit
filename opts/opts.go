@@ -20,6 +20,7 @@ import (
 	is "github.com/opencontainers/image-spec/specs-go/v1"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 	v1 "github.com/stellarproject/orbit/api/v1"
+	"github.com/stellarproject/orbit/config"
 )
 
 const (
@@ -30,10 +31,10 @@ const (
 )
 
 // WithOrbitConfig is a containerd.NewContainerOpts for spec and container configuration
-func WithOrbitConfig(volumeRoot string, config *v1.Container, image containerd.Image) func(ctx context.Context, client *containerd.Client, c *containers.Container) error {
+func WithOrbitConfig(root, volumeRoot string, config *v1.Container, image containerd.Image) func(ctx context.Context, client *containerd.Client, c *containers.Container) error {
 	return func(ctx context.Context, client *containerd.Client, c *containers.Container) error {
 		// generate the spec
-		if err := containerd.WithNewSpec(specOpt(volumeRoot, config, image))(ctx, client, c); err != nil {
+		if err := containerd.WithNewSpec(specOpt(root, volumeRoot, config, image))(ctx, client, c); err != nil {
 			return err
 		}
 		// save the config as a container extension
@@ -55,49 +56,49 @@ func WithRollback(ctx context.Context, client *containerd.Client, c *containers.
 	return nil
 }
 
-func specOpt(volumeRoot string, config *v1.Container, image containerd.Image) oci.SpecOpts {
+func specOpt(root, volumeRoot string, container *v1.Container, image containerd.Image) oci.SpecOpts {
 	opts := []oci.SpecOpts{
-		oci.WithImageConfigArgs(image, config.Process.Args),
+		oci.WithImageConfigArgs(image, container.Process.Args),
 		oci.WithHostLocaltime,
 		oci.WithNoNewPrivileges,
 		apparmor.WithDefaultProfile("orbit"),
 		seccomp.WithDefaultProfile(),
-		oci.WithEnv(config.Process.Env),
-		withMounts(config.Mounts),
-		withVolumes(volumeRoot, config.Volumes),
-		withConfigs(config.Configs),
+		oci.WithEnv(container.Process.Env),
+		withMounts(container.Mounts),
+		withVolumes(volumeRoot, container.Volumes),
+		withConfigs(container.Configs),
 	}
-	if config.Privileged {
+	if container.Privileged {
 		opts = append(opts, oci.WithPrivileged)
 	}
-	if config.Network == "host" {
+	if container.Network == "host" {
 		opts = append(opts, oci.WithHostHostsFile, oci.WithHostResolvconf, oci.WithHostNamespace(specs.NetworkNamespace))
-	} else if config.Network == "cni" {
-		opts = append(opts, withOrbitResolvconf, withContainerHostsFile, oci.WithLinuxNamespace(specs.LinuxNamespace{
+	} else if container.Network == "cni" {
+		opts = append(opts, withOrbitResolvconf(root), withContainerHostsFile(root), oci.WithLinuxNamespace(specs.LinuxNamespace{
 			Type: specs.NetworkNamespace,
-			Path: v1.NetworkPath(config.ID),
+			Path: config.NetworkPath(container.ID),
 		}),
-			oci.WithHostname(config.ID),
+			oci.WithHostname(container.ID),
 		)
 	}
-	if config.Resources != nil {
-		opts = append(opts, withResources(config.Resources))
+	if container.Resources != nil {
+		opts = append(opts, withResources(container.Resources))
 	}
-	if config.Gpus != nil {
+	if container.Gpus != nil {
 		opts = append(opts, nvidia.WithGPUs(
-			nvidia.WithDevices(ints(config.Gpus.Devices)...),
-			nvidia.WithCapabilities(toGpuCaps(config.Gpus.Capabilities)...),
+			nvidia.WithDevices(ints(container.Gpus.Devices)...),
+			nvidia.WithCapabilities(toGpuCaps(container.Gpus.Capabilities)...),
 		),
 		)
 	}
-	if config.Process.User != nil {
-		opts = append(opts, oci.WithUIDGID(config.Process.User.Uid, config.Process.User.Gid))
+	if container.Process.User != nil {
+		opts = append(opts, oci.WithUIDGID(container.Process.User.Uid, container.Process.User.Gid))
 	}
-	if config.Readonly {
+	if container.Readonly {
 		opts = append(opts, oci.WithRootFSReadonly())
 	}
 	// make sure this opt is run after the user has been set
-	opts = append(opts, withProcessCaps(config.Process.Capabilities))
+	opts = append(opts, withProcessCaps(container.Process.Capabilities))
 	return oci.Compose(opts...)
 }
 
@@ -253,7 +254,7 @@ func withConfigs(files map[string]*v1.Config) oci.SpecOpts {
 		for name, f := range files {
 			s.Mounts = append(s.Mounts, specs.Mount{
 				Type:        "bind",
-				Source:      v1.ConfigPath(c.ID, name),
+				Source:      config.ConfigPath(c.ID, name),
 				Destination: f.Path,
 				Options: []string{
 					"ro", "rbind",
@@ -264,50 +265,54 @@ func withConfigs(files map[string]*v1.Config) oci.SpecOpts {
 	}
 }
 
-func withContainerHostsFile(ctx context.Context, _ oci.Client, c *containers.Container, s *oci.Spec) error {
-	id := c.ID
-	if err := os.MkdirAll(filepath.Join(v1.Root, id), 0711); err != nil {
-		return err
+func withContainerHostsFile(root string) oci.SpecOpts {
+	return func(ctx context.Context, _ oci.Client, c *containers.Container, s *oci.Spec) error {
+		id := c.ID
+		if err := os.MkdirAll(root, 0711); err != nil {
+			return err
+		}
+		hostname := s.Hostname
+		if hostname == "" {
+			hostname = id
+		}
+		path := filepath.Join(root, "hosts")
+		f, err := os.Create(path)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		if err := f.Chmod(0666); err != nil {
+			return err
+		}
+		if _, err := f.WriteString("127.0.0.1       localhost\n"); err != nil {
+			return err
+		}
+		if _, err := f.WriteString(fmt.Sprintf("127.0.0.1       %s\n", hostname)); err != nil {
+			return err
+		}
+		if _, err := f.WriteString("::1     localhost ip6-localhost ip6-loopback\n"); err != nil {
+			return err
+		}
+		s.Mounts = append(s.Mounts, specs.Mount{
+			Destination: "/etc/hosts",
+			Type:        "bind",
+			Source:      path,
+			Options:     []string{"rbind", "ro"},
+		})
+		return nil
 	}
-	hostname := s.Hostname
-	if hostname == "" {
-		hostname = id
-	}
-	path := filepath.Join(v1.Root, id, "hosts")
-	f, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	if err := f.Chmod(0666); err != nil {
-		return err
-	}
-	if _, err := f.WriteString("127.0.0.1       localhost\n"); err != nil {
-		return err
-	}
-	if _, err := f.WriteString(fmt.Sprintf("127.0.0.1       %s\n", hostname)); err != nil {
-		return err
-	}
-	if _, err := f.WriteString("::1     localhost ip6-localhost ip6-loopback\n"); err != nil {
-		return err
-	}
-	s.Mounts = append(s.Mounts, specs.Mount{
-		Destination: "/etc/hosts",
-		Type:        "bind",
-		Source:      path,
-		Options:     []string{"rbind", "ro"},
-	})
-	return nil
 }
 
-func withOrbitResolvconf(ctx context.Context, _ oci.Client, c *containers.Container, s *oci.Spec) error {
-	s.Mounts = append(s.Mounts, specs.Mount{
-		Destination: "/etc/resolv.conf",
-		Type:        "bind",
-		Source:      filepath.Join(v1.Root, c.ID, "resolv.conf"),
-		Options:     []string{"rbind", "ro"},
-	})
-	return nil
+func withOrbitResolvconf(root string) oci.SpecOpts {
+	return func(ctx context.Context, _ oci.Client, c *containers.Container, s *oci.Spec) error {
+		s.Mounts = append(s.Mounts, specs.Mount{
+			Destination: "/etc/resolv.conf",
+			Type:        "bind",
+			Source:      filepath.Join(root, "resolv.conf"),
+			Options:     []string{"rbind", "ro"},
+		})
+		return nil
+	}
 }
 
 func GetConfig(ctx context.Context, container containerd.Container) (*v1.Container, error) {

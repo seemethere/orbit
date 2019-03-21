@@ -12,13 +12,13 @@ import (
 	networking "github.com/containerd/go-cni"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	v1 "github.com/stellarproject/orbit/api/v1"
+	"github.com/stellarproject/orbit/config"
 	"github.com/stellarproject/orbit/opts"
 	"github.com/stellarproject/orbit/route"
 	"golang.org/x/sys/unix"
 )
 
-func New(t, iface, mvlanAddress string, n networking.CNI) (v1.Network, error) {
+func New(t, iface, mvlanAddress string, n networking.CNI) (config.Network, error) {
 	if t == "macvlan" {
 		if err := route.Create(iface, mvlanAddress); err != nil {
 			return nil, err
@@ -36,7 +36,7 @@ type cni struct {
 }
 
 func (n *cni) Create(ctx context.Context, task containerd.Container) (string, error) {
-	path := v1.NetworkPath(task.ID())
+	path := config.NetworkPath(task.ID())
 	if _, err := os.Lstat(path); err != nil {
 		if !os.IsNotExist(err) {
 			return "", err
@@ -77,7 +77,7 @@ func (n *cni) Create(ctx context.Context, task containerd.Container) (string, er
 }
 
 func (n *cni) Remove(ctx context.Context, c containerd.Container) error {
-	path := v1.NetworkPath(c.ID())
+	path := config.NetworkPath(c.ID())
 	if err := n.network.Remove(c.ID(), path); err != nil {
 		logrus.WithError(err).Error("remove cni networking")
 	}
