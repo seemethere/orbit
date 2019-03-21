@@ -36,10 +36,10 @@ import (
 	is "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	"github.com/stellarproject/orbit/api"
 	v1 "github.com/stellarproject/orbit/api/v1"
 	"github.com/stellarproject/orbit/flux"
 	"github.com/stellarproject/orbit/opts"
+	"github.com/stellarproject/orbit/util"
 	"golang.org/x/sys/unix"
 )
 
@@ -681,7 +681,7 @@ func (a *Agent) Migrate(ctx context.Context, req *v1.MigrateRequest) (*v1.Migrat
 	if req.ID == "" {
 		return nil, ErrNoID
 	}
-	to, err := api.Agent(req.To)
+	to, err := util.Agent(req.To)
 	if err != nil {
 		return nil, err
 	}

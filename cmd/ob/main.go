@@ -8,9 +8,9 @@ import (
 	"github.com/containerd/containerd/namespaces"
 	raven "github.com/getsentry/raven-go"
 	"github.com/sirupsen/logrus"
-	"github.com/stellarproject/orbit/api"
 	v1 "github.com/stellarproject/orbit/api/v1"
 	"github.com/stellarproject/orbit/cmd"
+	"github.com/stellarproject/orbit/util"
 	"github.com/stellarproject/orbit/version"
 	"github.com/urfave/cli"
 )
@@ -74,6 +74,6 @@ func Context() context.Context {
 	return namespaces.WithNamespace(context.Background(), v1.DefaultNamespace)
 }
 
-func Agent(clix *cli.Context) (*api.LocalAgent, error) {
-	return api.Agent(clix.GlobalString("agent"))
+func Agent(clix *cli.Context) (*util.LocalAgent, error) {
+	return util.Agent(clix.GlobalString("agent"))
 }
