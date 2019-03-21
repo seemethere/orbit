@@ -62,7 +62,7 @@ message ContainerInfo {
 	string id = 1 [(gogoproto.customname) = "ID"];
 	string image = 2;
 	string status = 3;
-	string ip = 4 [(gogoproto.customname) = "IP"];
+	Service service = 4;
 	uint64 cpu = 5;
 	double memory_usage = 6;
 	double memory_limit = 7;
@@ -170,7 +170,7 @@ message Container {
 	repeated Mount mounts = 5;
 	Resources resources = 6;
 	GPUs gpus = 7;
-	map<string, Service> services = 8;
+	repeated ServiceConfig services = 8;
 	map<string, Config> configs = 9;
 	bool readonly = 10;
 	repeated Volume volumes = 11;
@@ -190,11 +190,19 @@ message Config {
 	string content = 4;
 }
 
-message Service {
-	int64 port = 1;
-	repeated string labels = 2;
+message ServiceConfig {
+	string name = 1;
+	int64 port = 2;
 	string url = 3;
 	HealthCheck check = 4;
+}
+
+message Service  {
+	string name = 1;
+	string ip = 2 [(gogoproto.customname) = "IP"];
+	int64 port = 3;
+	string url = 4;
+	HealthCheck check = 5;
 }
 
 message HealthCheck {

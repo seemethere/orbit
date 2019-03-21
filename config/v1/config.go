@@ -50,7 +50,6 @@ func (c *Container) Proto() *v1.Container {
 			Env:  c.Env,
 		},
 		Readonly: c.Readonly,
-		Services: make(map[string]*v1.Service),
 		Configs:  make(map[string]*v1.Config),
 		Security: &v1.Security{
 			Privileged:   c.Privileged,
@@ -119,19 +118,20 @@ func (c *Container) Proto() *v1.Container {
 		}
 	}
 	for name, s := range c.Services {
-		container.Services[name] = &v1.Service{
-			Port:   s.Port,
-			Labels: s.Labels,
-			Url:    s.URL,
+		service := &v1.ServiceConfig{
+			Name: name,
+			Port: s.Port,
+			Url:  s.URL,
 		}
 		if s.CheckType != "" {
-			container.Services[name].Check = &v1.HealthCheck{
+			service.Check = &v1.HealthCheck{
 				Type:     string(s.CheckType),
 				Interval: s.CheckInterval,
 				Timeout:  s.CheckTimeout,
 				Method:   s.CheckMethod,
 			}
 		}
+		container.Services = append(container.Services, service)
 	}
 	for name, cfg := range c.Configs {
 		container.Configs[name] = &v1.Config{
@@ -161,7 +161,6 @@ type File struct {
 
 type Service struct {
 	Port          int64     `toml:"port"`
-	Labels        []string  `toml:"labels"`
 	URL           string    `toml:"url"`
 	CheckType     CheckType `toml:"check_type"`
 	CheckInterval int64     `toml:"check_interval"`

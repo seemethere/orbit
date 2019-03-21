@@ -68,7 +68,7 @@ const (
 	StatusLabel            = "stellarproject.io/orbit/restart.status"
 )
 
-func New(ctx context.Context, c *Config, register config.Register, client *containerd.Client) (*Agent, error) {
+func New(ctx context.Context, c *Config, client *containerd.Client) (*Agent, error) {
 	if err := setupApparmor(); err != nil {
 		return nil, err
 	}
@@ -76,9 +76,9 @@ func New(ctx context.Context, c *Config, register config.Register, client *conta
 		plainRemotes[r] = true
 	}
 	a := &Agent{
-		config:   c,
-		client:   client,
-		register: register,
+		config: c,
+		client: client,
+		store:  newStoreClient(),
 	}
 	go a.startSupervisorLoop(ctx, c.Interval.Duration)
 	return a, nil
@@ -87,7 +87,7 @@ func New(ctx context.Context, c *Config, register config.Register, client *conta
 type Agent struct {
 	client       *containerd.Client
 	config       *Config
-	register     config.Register
+	store        *store
 	supervisorMu sync.Mutex
 }
 
@@ -244,10 +244,10 @@ func (a *Agent) info(ctx context.Context, c containerd.Container) (*v1.Container
 		limit  = float64(cg.Memory.Usage.Limit)
 	)
 	return &v1.ContainerInfo{
-		ID:          c.ID(),
-		Image:       info.Image,
-		Status:      string(status.Status),
-		IP:          info.Labels[opts.IPLabel],
+		ID:     c.ID(),
+		Image:  info.Image,
+		Status: string(status.Status),
+		//IP:          info.Labels[opts.IPLabel],
 		Cpu:         cpu,
 		MemoryUsage: memory,
 		MemoryLimit: limit,
@@ -271,7 +271,7 @@ func (a *Agent) List(ctx context.Context, req *v1.ListRequest) (*v1.ListResponse
 		if err != nil {
 			resp.Containers = append(resp.Containers, &v1.ContainerInfo{
 				ID:     c.ID(),
-				Status: "list error",
+				Status: err.Error(),
 			})
 			logrus.WithError(err).Error("info container")
 			continue
@@ -354,13 +354,17 @@ func (a *Agent) Update(ctx context.Context, req *v1.UpdateRequest) (*v1.UpdateRe
 		return nil, err
 	}
 	var changes []change
-	for name := range current.Services {
-		if _, ok := req.Container.Services[name]; !ok {
-			// if the new config does not have a service, deregister the old one
-			changes = append(changes, &deregisterChange{
-				register: a.register,
-				name:     name,
-			})
+	for _, cs := range current.Services {
+	inner:
+		for _, ns := range req.Container.Services {
+			if cs.Name == ns.Name {
+				// if the new config does not have a service, deregister the old one
+				changes = append(changes, &deregisterChange{
+					store: a.store,
+					name:  ns.Name,
+				})
+				break inner
+			}
 		}
 	}
 	changes = append(changes, &imageUpdateChange{
@@ -777,9 +781,7 @@ func (a *Agent) start(ctx context.Context, container containerd.Container) error
 	logrus.WithField("id", container.ID()).Debug("starting container")
 	a.supervisorMu.Lock()
 	defer a.supervisorMu.Unlock()
-	if err := container.Update(ctx, withStatus(containerd.Running)); err != nil {
-		return err
-	}
+
 	config, err := opts.GetConfig(ctx, container)
 	if err != nil {
 		return err
@@ -801,14 +803,20 @@ func (a *Agent) start(ctx context.Context, container containerd.Container) error
 	}
 	if ip != "" {
 		logrus.WithField("id", container.ID()).WithField("ip", ip).Debug("setup network interface")
-		for name, srv := range config.Services {
-			logrus.WithField("id", container.ID()).WithField("ip", ip).Infof("registering %s", name)
-			if err := a.register.Register(container.ID(), name, ip, srv); err != nil {
+		for _, srv := range config.Services {
+			service := &v1.Service{
+				Name:  srv.Name,
+				IP:    ip,
+				Port:  srv.Port,
+				Url:   srv.Url,
+				Check: srv.Check,
+			}
+			if err := a.store.Register(container.ID(), service); err != nil {
 				return err
 			}
 		}
 	}
-	if err := container.Update(ctx, opts.WithIP(ip), opts.WithoutRestore); err != nil {
+	if err := container.Update(ctx, opts.WithIP(ip), opts.WithoutRestore, withStatus(containerd.Running)); err != nil {
 		return err
 	}
 	task, err := container.NewTask(ctx, cio.BinaryIO("orbit-log", nil), opts.WithTaskRestore(desc))

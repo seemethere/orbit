@@ -7,7 +7,6 @@ import (
 	"github.com/containerd/containerd/containers"
 	"github.com/containerd/containerd/errdefs"
 	v1 "github.com/stellarproject/orbit/api/v1"
-	"github.com/stellarproject/orbit/config"
 	"github.com/stellarproject/orbit/flux"
 	"github.com/stellarproject/orbit/opts"
 )
@@ -30,12 +29,12 @@ func (c *imageUpdateChange) update(ctx context.Context, container containerd.Con
 }
 
 type deregisterChange struct {
-	register config.Register
-	name     string
+	store *store
+	name  string
 }
 
 func (c *deregisterChange) update(ctx context.Context, container containerd.Container) error {
-	return c.register.Deregister(container.ID(), c.name)
+	return c.store.Deregister(container.ID(), c.name)
 }
 
 type configChange struct {

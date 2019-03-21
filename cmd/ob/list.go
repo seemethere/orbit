@@ -33,7 +33,7 @@ var listCommand = cli.Command{
 				c.ID,
 				c.Image,
 				c.Status,
-				c.IP,
+				"TODO", // c.IP,
 				time.Duration(int64(c.Cpu)),
 				fmt.Sprintf("%s/%s", units.HumanSize(c.MemoryUsage), units.HumanSize(c.MemoryLimit)),
 				fmt.Sprintf("%d/%d", c.PidUsage, c.PidLimit),

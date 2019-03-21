@@ -17,10 +17,13 @@ import (
 	"github.com/pkg/errors"
 	v1 "github.com/stellarproject/orbit/api/v1"
 	"github.com/stellarproject/orbit/config"
+	"github.com/stellarproject/orbit/util"
 	"github.com/stellarproject/orbit/version"
 	"github.com/vishvananda/netlink"
 	"google.golang.org/grpc"
 )
+
+const defaultRuntime = "io.containerd.runc.v2"
 
 // init func for a containerd service plugin
 func init() {
@@ -43,6 +46,13 @@ func init() {
 				}
 				c.Iface = i
 			}
+			if c.Domain == "" {
+				d, err := util.GetDomainName()
+				if err != nil {
+					return nil, err
+				}
+				c.Domain = d
+			}
 			c.Root = ic.Root
 			c.State = ic.State
 			exports["interface"] = c.Iface
@@ -54,12 +64,13 @@ func init() {
 				"",
 				containerd.WithDefaultNamespace(config.DefaultNamespace),
 				containerd.WithServices(servicesOpts...),
+				containerd.WithDefaultRuntime(defaultRuntime),
 			)
 			if err != nil {
 				return nil, err
 			}
 			ic.Meta.Exports = exports
-			return New(ic.Context, c, nil, client)
+			return New(ic.Context, c, client)
 		},
 	})
 }
