@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -33,6 +34,7 @@ import (
 	gocni "github.com/containerd/go-cni"
 	"github.com/containerd/typeurl"
 	"github.com/gogo/protobuf/types"
+	"github.com/miekg/dns"
 	ver "github.com/opencontainers/image-spec/specs-go"
 	is "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
@@ -87,6 +89,8 @@ func New(ctx context.Context, c *Config, client *containerd.Client) (*Agent, err
 		server: s,
 	}
 	go a.startSupervisorLoop(namespaces.WithNamespace(ctx, config.DefaultNamespace), c.Interval.Duration)
+	a.serveDNS()
+
 	return a, nil
 }
 
@@ -988,6 +992,115 @@ func (a *Agent) getNetwork(network *types.Any) (network, error) {
 		}, n)
 	default:
 		return nil, errors.Errorf("unknown network type %s", network.TypeUrl)
+	}
+}
+
+func (a *Agent) serveDNS() {
+	var (
+		timeout = 2 * time.Second
+		mux     = dns.NewServeMux()
+	)
+	mux.Handle(".", a)
+
+	go startDnsServer(mux, "tcp", "0.0.0.0:53", 0, timeout)
+	go startDnsServer(mux, "udp", "0.0.0.0:53", 65535, timeout)
+}
+
+func (s *Agent) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
+	question := req.Question[0]
+	key := getKey(question)
+	if key.Domain != s.config.Domain {
+		s.ServeDNSForward(w, req)
+		return
+	}
+	m := &dns.Msg{
+		MsgHdr: dns.MsgHdr{
+			Authoritative:      true,
+			RecursionAvailable: true,
+		},
+		Answer: make([]dns.RR, 0, 10),
+	}
+
+	m.SetReply(req)
+	if key.isEmpty() {
+		m.SetRcode(req, dns.RcodeNameError)
+		return
+	}
+
+	service, err := s.store.fetchService(key.Name)
+	if err != nil {
+		logrus.WithError(err).Error("get A records")
+		m.SetRcode(req, dns.RcodeNameError)
+		return
+	}
+	ip := net.ParseIP(service.IP)
+
+	switch question.Qtype {
+	case dns.TypeA, dns.TypeAAAA, dns.TypeANY:
+		m.Answer = []dns.RR{
+			// 5 TTL
+			&dns.A{Hdr: createHeader(dns.TypeA, question.Name, 5), A: ip},
+		}
+	case dns.TypeSRV:
+		m.Answer = []dns.RR{
+			&dns.SRV{Hdr: createHeader(dns.TypeSRV, question.Name, 5), Port: uint16(service.Port), Target: ip.String() + "."},
+		}
+	default:
+		m.SetRcode(req, dns.RcodeNameError)
+	}
+	if err := w.WriteMsg(m); err != nil {
+		logrus.WithError(err).Error("write")
+	}
+}
+
+func (s *Agent) ServeDNSForward(w dns.ResponseWriter, req *dns.Msg) {
+	nameservers := s.nameservers()
+	for i, ns := range nameservers {
+		nameservers[i] = ns + ":53"
+	}
+	if len(nameservers) == 0 {
+		m := &dns.Msg{
+			MsgHdr: dns.MsgHdr{
+				Authoritative:      false,
+				RecursionAvailable: true,
+			},
+		}
+
+		m.SetReply(req)
+		m.SetRcode(req, dns.RcodeServerFailure)
+		w.WriteMsg(m)
+
+		return
+	}
+
+	var (
+		proto  = getProto(w)
+		client = &dns.Client{Net: proto, ReadTimeout: 5 * time.Second}
+		nsid   = int(req.Id) % len(nameservers)
+		try    = 0
+	)
+	// Use request Id for "random" nameserver selection
+	for try < len(nameservers) {
+		// TODO: we can cache this in redis with a ttl
+		r, _, err := client.Exchange(req, nameservers[nsid])
+		if err == nil {
+			w.WriteMsg(r)
+			return
+		}
+		logrus.WithError(err).Errorf("exchange %s", nameservers[nsid])
+
+		// Seen an error, this can only mean, "DNSServer not reached", try again
+		// but only if we have not exausted our nameservers
+		try++
+		nsid = (nsid + 1) % len(nameservers)
+	}
+
+	m := &dns.Msg{}
+	m.SetReply(req)
+	m.SetRcode(req, dns.RcodeServerFailure)
+
+	if err := w.WriteMsg(m); err != nil {
+		logrus.WithError(err).Error("write")
 	}
 }
 

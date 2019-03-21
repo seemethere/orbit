@@ -7,6 +7,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gomodule/redigo/redis"
+	"github.com/pkg/errors"
 	lconfig "github.com/siddontang/ledisdb/config"
 	"github.com/siddontang/ledisdb/server"
 	v1 "github.com/stellarproject/orbit/api/v1"
@@ -74,6 +75,31 @@ func (s *store) Deregister(id, name string) error {
 		return err
 	}
 	return nil
+}
+
+func (s *store) fetchService(name string) (*v1.Service, error) {
+	values, err := redis.Values(s.do("HGETALL", fmt.Sprintf(serviceFormat, name)))
+	if err != nil {
+		return nil, err
+	}
+	if len(values) == 0 {
+		return nil, errors.Errorf("service %q does not exist", name)
+	}
+	var v []byte
+	for _, val := range values {
+		if val == nil {
+			continue
+		}
+		v = val.([]byte)
+	}
+	if v == nil {
+		return nil, errors.Errorf("service %q does not exist", name)
+	}
+	var service v1.Service
+	if err := proto.Unmarshal(v, &service); err != nil {
+		return nil, err
+	}
+	return &service, nil
 }
 
 func (s *store) do(cmd string, args ...interface{}) (interface{}, error) {
