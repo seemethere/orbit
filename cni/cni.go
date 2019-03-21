@@ -12,31 +12,37 @@ import (
 	gocni "github.com/containerd/go-cni"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	"github.com/stellarproject/orbit/config"
 	"github.com/stellarproject/orbit/opts"
 	"github.com/stellarproject/orbit/route"
 	"golang.org/x/sys/unix"
 )
 
-func New(t, iface, mvlanAddress string, n gocni.CNI) (*cni, error) {
-	if t == "macvlan" {
-		if err := route.Create(iface, mvlanAddress); err != nil {
+type Config struct {
+	Type       string
+	State      string
+	Iface      string
+	BridgeAddr string
+}
+
+func New(c Config, n gocni.CNI) (*cni, error) {
+	if c.Type == "macvlan" {
+		if err := route.Create(c.Iface, c.BridgeAddr); err != nil {
 			return nil, err
 		}
 	}
 	return &cni{
 		network: n,
-		nt:      t,
+		config:  c,
 	}, nil
 }
 
 type cni struct {
 	network gocni.CNI
-	nt      string
+	config  Config
 }
 
 func (n *cni) Create(ctx context.Context, task containerd.Container) (string, error) {
-	path := config.NetworkPath(task.ID())
+	path := filepath.Join(n.config.State, task.ID(), "net")
 	if _, err := os.Lstat(path); err != nil {
 		if !os.IsNotExist(err) {
 			return "", err
@@ -61,7 +67,7 @@ func (n *cni) Create(ctx context.Context, task containerd.Container) (string, er
 		if err := task.Update(ctx, opts.WithIP(ip.String())); err != nil {
 			return "", err
 		}
-		if n.nt == "macvlan" {
+		if n.config.Type == "macvlan" {
 			route.Remove(ip.String())
 			if err := route.Add(ip.String()); err != nil {
 				return "", err
@@ -77,14 +83,14 @@ func (n *cni) Create(ctx context.Context, task containerd.Container) (string, er
 }
 
 func (n *cni) Remove(ctx context.Context, c containerd.Container) error {
-	path := config.NetworkPath(c.ID())
+	path := filepath.Join(n.config.State, c.ID(), "net")
 	if err := n.network.Remove(c.ID(), path); err != nil {
 		logrus.WithError(err).Error("remove cni gocni")
 	}
 	if err := unix.Unmount(path, 0); err != nil {
 		logrus.WithError(err).Error("unmount netns")
 	}
-	if n.nt == "macvlan" {
+	if n.config.Type == "macvlan" {
 		info, err := c.Info(ctx)
 		if err != nil {
 			return err

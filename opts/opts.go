@@ -31,11 +31,21 @@ const (
 	RestoreCheckpointLabel = "io/orbit/restore.checkpoint"
 )
 
+type Paths struct {
+	Root   string
+	State  string
+	Volume string
+}
+
+func (p Paths) networkPath(id string) string {
+	return filepath.Join(p.State, id, "net")
+}
+
 // WithOrbitConfig is a containerd.NewContainerOpts for spec and container configuration
-func WithOrbitConfig(root, volumeRoot string, config *v1.Container, image containerd.Image) func(ctx context.Context, client *containerd.Client, c *containers.Container) error {
+func WithOrbitConfig(paths Paths, config *v1.Container, image containerd.Image) func(ctx context.Context, client *containerd.Client, c *containers.Container) error {
 	return func(ctx context.Context, client *containerd.Client, c *containers.Container) error {
 		// generate the spec
-		if err := containerd.WithNewSpec(specOpt(root, volumeRoot, config, image))(ctx, client, c); err != nil {
+		if err := containerd.WithNewSpec(specOpt(paths, config, image))(ctx, client, c); err != nil {
 			return err
 		}
 		// save the config as a container extension
@@ -57,7 +67,7 @@ func WithRollback(ctx context.Context, client *containerd.Client, c *containers.
 	return nil
 }
 
-func specOpt(root, volumeRoot string, container *v1.Container, image containerd.Image) oci.SpecOpts {
+func specOpt(paths Paths, container *v1.Container, image containerd.Image) oci.SpecOpts {
 	opts := []oci.SpecOpts{
 		oci.WithImageConfigArgs(image, container.Process.Args),
 		oci.WithHostLocaltime,
@@ -66,7 +76,7 @@ func specOpt(root, volumeRoot string, container *v1.Container, image containerd.
 		seccomp.WithDefaultProfile(),
 		oci.WithEnv(container.Process.Env),
 		withMounts(container.Mounts),
-		withVolumes(volumeRoot, container.Volumes),
+		withVolumes(paths.Volume, container.Volumes),
 		withConfigs(container.Configs),
 	}
 	if container.Security.Privileged {
@@ -75,9 +85,9 @@ func specOpt(root, volumeRoot string, container *v1.Container, image containerd.
 	if container.Network.TypeUrl == proto.MessageName(&v1.HostNetwork{}) {
 		opts = append(opts, oci.WithHostHostsFile, oci.WithHostResolvconf, oci.WithHostNamespace(specs.NetworkNamespace))
 	} else if container.Network.TypeUrl == proto.MessageName(&v1.CNINetwork{}) {
-		opts = append(opts, withOrbitResolvconf(root), withContainerHostsFile(root), oci.WithLinuxNamespace(specs.LinuxNamespace{
+		opts = append(opts, withOrbitResolvconf(paths.Root), withContainerHostsFile(paths.Root), oci.WithLinuxNamespace(specs.LinuxNamespace{
 			Type: specs.NetworkNamespace,
-			Path: config.NetworkPath(container.ID),
+			Path: paths.networkPath(container.ID),
 		}),
 			oci.WithHostname(container.ID),
 		)

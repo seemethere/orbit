@@ -2,15 +2,18 @@ package agent
 
 import (
 	"context"
+	"path/filepath"
 	"time"
 
 	"github.com/containerd/containerd"
+	"github.com/stellarproject/orbit/opts"
 )
 
 type Config struct {
 	ID            string   `toml:"id"` //TODO: remove for hostname
 	Root          string   `toml:"-"`
-	Iface         string   `toml:"iface"`                     // TODO: dynamic public route
+	State         string   `toml:"-"`
+	Iface         string   `toml:"iface"`
 	Domain        string   `toml:"domain,omitempty" json:"-"` // TODO: hostname and domain name
 	Nameservers   []string `toml:"nameservers"`
 	Timezone      string   `toml:"timezone"`
@@ -18,6 +21,14 @@ type Config struct {
 	VolumeRoot    string   `toml:"volume_root"`
 	Interval      duration `toml:"supervisor_interval"`
 	BridgeAddress string   `toml:"bridge_address" json:"-"`
+}
+
+func (c *Config) Paths(id string) opts.Paths {
+	return opts.Paths{
+		Root:   filepath.Join(c.Root, id),
+		State:  filepath.Join(c.State, id),
+		Volume: c.VolumeRoot,
+	}
 }
 
 type duration struct {

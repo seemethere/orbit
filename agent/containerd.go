@@ -43,6 +43,8 @@ func init() {
 				}
 				c.Iface = i
 			}
+			c.Root = ic.Root
+			c.State = ic.State
 			exports["interface"] = c.Iface
 			servicesOpts, err := getServicesOpts(ic)
 			if err != nil {

@@ -21,7 +21,7 @@ install:
 FORCE:
 
 plugin: FORCE
-	go build -o orbit-linux-amd64.so -v -buildmode=plugin github.com/stellarproject/orbit/plugin/
+	go build -ldflags '${GO_LDFLAGS}' -o orbit-linux-amd64.so -v -buildmode=plugin github.com/stellarproject/orbit/plugin/
 
 protos:
 	protobuild --quiet ${PACKAGES}

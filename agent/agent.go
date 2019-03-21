@@ -109,7 +109,7 @@ func (a *Agent) Create(ctx context.Context, req *v1.CreateRequest) (*types.Empty
 	container, err := a.client.NewContainer(ctx,
 		req.Container.ID,
 		flux.WithNewSnapshot(image),
-		opts.WithOrbitConfig(filepath.Join(a.config.Root, req.Container.ID), a.config.VolumeRoot, req.Container, image),
+		opts.WithOrbitConfig(a.config.Paths(req.Container.ID), req.Container, image),
 	)
 	if err != nil {
 		return nil, err
@@ -368,10 +368,9 @@ func (a *Agent) Update(ctx context.Context, req *v1.UpdateRequest) (*v1.UpdateRe
 		client: a.client,
 	})
 	changes = append(changes, &configChange{
-		client:     a.client,
-		c:          req.Container,
-		volumeRoot: a.config.VolumeRoot,
-		root:       filepath.Join(a.config.Root, req.Container.ID),
+		client: a.client,
+		c:      req.Container,
+		config: a.config,
 	})
 	changes = append(changes, &filesChange{
 		c: req.Container,
@@ -627,7 +626,7 @@ func (a *Agent) Restore(ctx context.Context, req *v1.RestoreRequest) (*v1.Restor
 	}
 	o := []containerd.NewContainerOpts{
 		flux.WithNewSnapshot(image),
-		opts.WithOrbitConfig(filepath.Join(a.config.Root, c.ID), a.config.VolumeRoot, config, image),
+		opts.WithOrbitConfig(a.config.Paths(c.ID), config, image),
 	}
 	if req.Live {
 		desc, err := getByMediaType(index, images.MediaTypeContainerd1Checkpoint)
@@ -947,7 +946,12 @@ func (a *Agent) getNetwork(network *types.Any) (network, error) {
 		if err != nil {
 			return nil, err
 		}
-		return cni.New(networkType, a.config.Iface, a.config.BridgeAddress, n)
+		return cni.New(cni.Config{
+			Type:       networkType,
+			State:      a.config.State,
+			Iface:      a.config.Iface,
+			BridgeAddr: a.config.BridgeAddress,
+		}, n)
 	default:
 		return nil, errors.Errorf("unknown network type %s", network.TypeUrl)
 	}

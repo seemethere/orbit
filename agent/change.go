@@ -39,10 +39,9 @@ func (c *deregisterChange) update(ctx context.Context, container containerd.Cont
 }
 
 type configChange struct {
-	c          *v1.Container
-	client     *containerd.Client
-	volumeRoot string
-	root       string
+	c      *v1.Container
+	client *containerd.Client
+	config *Config
 }
 
 func (c *configChange) update(ctx context.Context, container containerd.Container) error {
@@ -50,7 +49,7 @@ func (c *configChange) update(ctx context.Context, container containerd.Containe
 	if err != nil {
 		return err
 	}
-	return container.Update(ctx, opts.WithSetPreviousConfig, opts.WithOrbitConfig(c.root, c.volumeRoot, c.c, image))
+	return container.Update(ctx, opts.WithSetPreviousConfig, opts.WithOrbitConfig(c.config.Paths(c.c.ID), c.c, image))
 }
 
 type filesChange struct {

@@ -7,7 +7,6 @@ import (
 )
 
 const (
-	Root             = "/var/lib/orbit"
 	state            = "/run/orbit"
 	DefaultRuntime   = "io.containerd.runc.v2"
 	DefaultNamespace = "orbit"
@@ -21,10 +20,6 @@ func StatePath(id string) string {
 type Register interface {
 	Register(id, name, ip string, s *v1.Service) error
 	Deregister(id, name string) error
-}
-
-func NetworkPath(id string) string {
-	return filepath.Join(StatePath(id), "net")
 }
 
 func ConfigPath(id, name string) string {
