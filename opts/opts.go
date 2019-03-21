@@ -21,7 +21,6 @@ import (
 	is "github.com/opencontainers/image-spec/specs-go/v1"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 	v1 "github.com/stellarproject/orbit/api/v1"
-	"github.com/stellarproject/orbit/config"
 )
 
 const (
@@ -39,6 +38,10 @@ type Paths struct {
 
 func (p Paths) networkPath(id string) string {
 	return filepath.Join(p.State, id, "net")
+}
+
+func (p Paths) configPath(id, name string) string {
+	return filepath.Join(p.State, id, "configs", name)
 }
 
 // WithOrbitConfig is a containerd.NewContainerOpts for spec and container configuration
@@ -77,7 +80,7 @@ func specOpt(paths Paths, container *v1.Container, image containerd.Image) oci.S
 		oci.WithEnv(container.Process.Env),
 		withMounts(container.Mounts),
 		withVolumes(paths.Volume, container.Volumes),
-		withConfigs(container.Configs),
+		withConfigs(paths, container.Configs),
 	}
 	if container.Security.Privileged {
 		opts = append(opts, oci.WithPrivileged)
@@ -260,12 +263,12 @@ func withVolumes(root string, volumes []*v1.Volume) oci.SpecOpts {
 	}
 }
 
-func withConfigs(files map[string]*v1.Config) oci.SpecOpts {
+func withConfigs(paths Paths, files map[string]*v1.Config) oci.SpecOpts {
 	return func(ctx context.Context, _ oci.Client, c *containers.Container, s *oci.Spec) error {
 		for name, f := range files {
 			s.Mounts = append(s.Mounts, specs.Mount{
 				Type:        "bind",
-				Source:      config.ConfigPath(c.ID, name),
+				Source:      paths.configPath(c.ID, name),
 				Destination: f.Path,
 				Options: []string{
 					"ro", "rbind",
