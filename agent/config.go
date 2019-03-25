@@ -3,10 +3,12 @@ package agent
 import (
 	"context"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/containerd/containerd"
 	"github.com/stellarproject/orbit/opts"
+	"github.com/stellarproject/orbit/util"
 )
 
 type Config struct {
@@ -18,9 +20,6 @@ type Config struct {
 	Root  string `toml:"-"`
 	State string `toml:"-"`
 
-	// DNS
-	Nameservers []string `toml:"nameservers"`
-
 	// Networking
 	BridgeAddress string `toml:"bridge_address"`
 	Iface         string `toml:"iface"`
@@ -31,6 +30,20 @@ type Config struct {
 
 	// Store
 	Master bool `toml:"master"`
+
+	ip    string
+	ipErr error
+	ipO   sync.Once
+}
+
+func (c *Config) IP() (string, error) {
+	c.ipO.Do(func() {
+		c.ip, c.ipErr = util.GetIP(c.Iface)
+	})
+	if c.ipErr != nil {
+		return "", c.ipErr
+	}
+	return c.ip, nil
 }
 
 func (c *Config) Paths(id string) opts.Paths {

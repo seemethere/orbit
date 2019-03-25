@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -74,6 +73,9 @@ const (
 
 func New(ctx context.Context, c *Config, client *containerd.Client, storeServer *server.App) (*Agent, error) {
 	if err := setupApparmor(); err != nil {
+		return nil, err
+	}
+	if err := setupHostResolvConf(); err != nil {
 		return nil, err
 	}
 	for _, r := range c.PlainRemotes {
@@ -896,36 +898,14 @@ func (a *Agent) setupRuntimeFiles(ctx context.Context, container containerd.Cont
 	return a.setupResolvConf(container.ID())
 }
 
-func (a *Agent) nameservers() []string {
-	ns := a.config.Nameservers
-	if len(ns) == 0 {
-		ns = []string{
-			"8.8.8.8",
-			"8.8.4.4",
-		}
-	}
-	return ns
-}
-
 func (a *Agent) setupResolvConf(id string) error {
-	if err := os.MkdirAll(filepath.Join(a.config.Root, id), 0711); err != nil {
-		return err
-	}
-	f, err := ioutil.TempFile("", "orbit-resolvconf")
+	ip, err := a.config.IP()
 	if err != nil {
 		return err
 	}
-	if err := f.Chmod(0666); err != nil {
-		return err
-	}
-	for _, ns := range a.nameservers() {
-		if _, err := f.WriteString(fmt.Sprintf("nameserver %s\n", ns)); err != nil {
-			f.Close()
-			return err
-		}
-	}
-	f.Close()
-	return os.Rename(f.Name(), filepath.Join(a.config.Root, id, "resolv.conf"))
+	path := filepath.Join(a.config.Root, id, "resolv.conf")
+	conf := NewResolvConf([]string{ip})
+	return conf.Write(path)
 }
 
 func (a *Agent) getContainerDiff(ctx context.Context, container containerd.Container) (stateChange, error) {
@@ -1060,7 +1040,7 @@ func (s *Agent) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 }
 
 func (s *Agent) ServeDNSForward(w dns.ResponseWriter, req *dns.Msg) {
-	nameservers := s.nameservers()
+	nameservers := defaultNameservers
 	for i, ns := range nameservers {
 		nameservers[i] = ns + ":53"
 	}
