@@ -2,12 +2,9 @@ id = "redis"
 image = "docker.io/library/redis:4.0-alpine"
 
 [network]
-	type = "bridge"
-	name = "boss"
-	bridge = "boss0"
+	type = "macvlan"
 	[network.ipam]
-		type = "host-local"
-		subnet = "10.10.0.0/16"
+		type = "dhcp"
 
 [resources]
 	cpu = 1.5
