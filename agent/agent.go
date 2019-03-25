@@ -45,6 +45,7 @@ import (
 	"github.com/stellarproject/orbit/config"
 	"github.com/stellarproject/orbit/flux"
 	"github.com/stellarproject/orbit/opts"
+	"github.com/stellarproject/orbit/route"
 	"github.com/stellarproject/orbit/util"
 	"golang.org/x/sys/unix"
 )
@@ -85,10 +86,14 @@ func New(ctx context.Context, c *Config, client *containerd.Client, storeServer 
 	if c.Master {
 		masterAddr = ""
 	}
+	store, err := newStoreClient(masterAddr)
+	if err != nil {
+		return nil, err
+	}
 	a := &Agent{
 		config: c,
 		client: client,
-		store:  newStoreClient(masterAddr),
+		store:  store,
 		server: storeServer,
 		dhcp:   newDHCP(),
 	}
@@ -96,6 +101,23 @@ func New(ctx context.Context, c *Config, client *containerd.Client, storeServer 
 		if err := a.store.RegisterMaster(c.Iface); err != nil {
 			return nil, err
 		}
+	}
+	if c.BridgeAddress == "" {
+		logrus.Info("aquire bridge address")
+		r, err := a.DHCPAdd(context.Background(), &v1.DHCPAddRequest{
+			ID:    c.ID,
+			Name:  route.Interface,
+			Iface: c.Iface,
+			Netns: "/proc/1/ns/net",
+		})
+		if err != nil {
+			return nil, err
+		}
+		ip := net.IP(r.IPs[0].Address.IP).String()
+		if err := route.Create(c.Iface, ip); err != nil {
+			return nil, err
+		}
+		c.BridgeAddress = ip
 	}
 	go a.startSupervisorLoop(namespaces.WithNamespace(ctx, config.DefaultNamespace), c.Interval.Duration)
 	a.serveDNS()

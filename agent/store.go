@@ -44,7 +44,7 @@ func newStore(root string, master bool) (*server.App, error) {
 	return server, nil
 }
 
-func newStoreClient(master string) *store {
+func newStoreClient(master string) (*store, error) {
 	if master == "" {
 		master = localStoreAddr
 	}
@@ -58,11 +58,16 @@ func newStoreClient(master string) *store {
 		slave = redis.NewPool(func() (redis.Conn, error) {
 			return redis.Dial("tcp", localStoreAddr)
 		}, 5)
+		conn := slave.Get()
+		defer conn.Close()
+		if _, err := conn.Do("SLAVEOF", master, storePort); err != nil {
+			return nil, err
+		}
 	}
 	return &store{
 		m: m,
 		s: slave,
-	}
+	}, nil
 }
 
 type store struct {
