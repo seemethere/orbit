@@ -3,6 +3,7 @@ package agent
 import (
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/containerd/containerd"
 	containers "github.com/containerd/containerd/api/services/containers/v1"
@@ -103,18 +104,21 @@ func getClient(ic *plugin.InitContext) (*containerd.Client, error) {
 }
 
 func getDefaultIface() (string, error) {
-	routes, err := netlink.RouteList(nil, netlink.FAMILY_V4)
-	if err != nil {
-		return "", err
-	}
-	for _, r := range routes {
-		if r.Gw != nil {
-			link, err := netlink.LinkByIndex(r.LinkIndex)
-			if err != nil {
-				return "", err
-			}
-			return link.Attrs().Name, nil
+	for i := 0; i < 20; i++ {
+		routes, err := netlink.RouteList(nil, netlink.FAMILY_V4)
+		if err != nil {
+			return "", err
 		}
+		for _, r := range routes {
+			if r.Gw != nil {
+				link, err := netlink.LinkByIndex(r.LinkIndex)
+				if err != nil {
+					return "", err
+				}
+				return link.Attrs().Name, nil
+			}
+		}
+		time.Sleep(100 * time.Millisecond)
 	}
 	return "", errors.New("no default route found")
 }
