@@ -49,6 +49,8 @@ func main() {
 		skel.PluginMain(macvlanAdd, macvlanDelete, version.All)
 	case "dhcp":
 		skel.PluginMain(dhcpAdd, dhcpDelete, version.All)
+	case "loopback":
+		skel.PluginMain(loopbackAdd, loopbackDelete, version.All)
 	default:
 		app := cli.NewApp()
 		app.Name = "orbit-network"
