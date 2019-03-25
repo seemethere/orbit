@@ -36,38 +36,14 @@ import (
 	"github.com/urfave/cli"
 )
 
-func init() {
-	// this ensures that main runs only on main thread (thread group leader).
-	// since namespace ops (unshare, setns) are done for a single thread, we
-	// must ensure that the goroutine does not jump from OS thread to thread
-	runtime.LockOSThread()
-}
-
 func main() {
-	switch os.Args[0] {
-	case "macvlan":
-		skel.PluginMain(macvlanAdd, macvlanDelete, version.All)
-	case "dhcp":
-		skel.PluginMain(dhcpAdd, dhcpDelete, version.All)
-	case "loopback":
-		skel.PluginMain(loopbackAdd, loopbackDelete, version.All)
-	default:
+	if len(os.Args) > 1 && os.Args[1] == "create" {
+		runtime.LockOSThread()
 		app := cli.NewApp()
 		app.Name = "orbit-network"
 		app.Version = bv.Version
 		app.Usage = "orbit network namespace creation"
 		app.Description = cmd.Banner
-		app.Flags = []cli.Flag{
-			cli.BoolFlag{
-				Name:  "debug",
-				Usage: "enable debug output in the logs",
-			},
-			cli.StringFlag{
-				Name:   "sentry-dsn",
-				Usage:  "sentry DSN",
-				EnvVar: "SENTRY_DSN",
-			},
-		}
 		app.Before = func(clix *cli.Context) error {
 			if dsn := clix.GlobalString("sentry-dsn"); dsn != "" {
 				raven.SetDSN(dsn)
@@ -84,6 +60,7 @@ func main() {
 			os.Exit(1)
 		}
 	}
+	skel.PluginMain(dhcpAdd, dhcpDelete, version.All)
 }
 
 func dhcpAdd(args *skel.CmdArgs) error {

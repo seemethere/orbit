@@ -45,17 +45,17 @@ func (n *cni) Create(ctx context.Context, task containerd.Container) (string, er
 	path := filepath.Join(n.config.State, task.ID(), "net")
 	if _, err := os.Lstat(path); err != nil {
 		if !os.IsNotExist(err) {
-			return "", err
+			return "", errors.Wrap(err, "lstat network namespace")
 		}
 		if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
-			return "", err
+			return "", errors.Wrap(err, "mkdir of network path")
 		}
 		if err := createNetns(path); err != nil {
-			return "", err
+			return "", errors.Wrap(err, "create netns")
 		}
 		result, err := n.network.Setup(task.ID(), path)
 		if err != nil {
-			return "", err
+			return "", errors.Wrap(err, "setup cni network")
 		}
 		var ip net.IP
 		for _, ipc := range result.Interfaces["eth0"].IPConfigs {
@@ -65,19 +65,19 @@ func (n *cni) Create(ctx context.Context, task containerd.Container) (string, er
 			}
 		}
 		if err := task.Update(ctx, opts.WithIP(ip.String())); err != nil {
-			return "", err
+			return "", errors.Wrap(err, "update with ip")
 		}
 		if n.config.Type == "macvlan" {
 			route.Remove(ip.String())
 			if err := route.Add(ip.String()); err != nil {
-				return "", err
+				return "", errors.Wrap(err, "add route")
 			}
 		}
 		return ip.String(), nil
 	}
 	l, err := task.Labels(ctx)
 	if err != nil {
-		return "", err
+		return "", errors.Wrap(err, "get container labels for ip")
 	}
 	return l[opts.IPLabel], nil
 }

@@ -984,7 +984,7 @@ func (a *Agent) getNetwork(network *types.Any) (network, error) {
 			c.Master = a.config.Iface
 		}
 		n, err := gocni.New(
-			gocni.WithPluginDir([]string{"/opt/containerd/bin"}),
+			gocni.WithPluginDir([]string{"/opt/containerd/bin", "/usr/local/bin"}),
 			gocni.WithConf(c.MarshalCNI()),
 			gocni.WithLoNetwork,
 		)
