@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -71,22 +72,27 @@ const (
 	StatusLabel            = "stellarproject.io/orbit/restart.status"
 )
 
-func New(ctx context.Context, c *Config, client *containerd.Client) (*Agent, error) {
+func New(ctx context.Context, c *Config, client *containerd.Client, storeServer *server.App) (*Agent, error) {
 	if err := setupApparmor(); err != nil {
-		return nil, err
-	}
-	s, err := newStore(c.Root)
-	if err != nil {
 		return nil, err
 	}
 	for _, r := range c.PlainRemotes {
 		plainRemotes[r] = true
 	}
+	masterAddr := net.JoinHostPort(masterDomain, strconv.Itoa(storePort))
+	if c.Master {
+		masterAddr = ""
+	}
 	a := &Agent{
 		config: c,
 		client: client,
-		store:  newStoreClient(),
-		server: s,
+		store:  newStoreClient(masterAddr),
+		server: storeServer,
+	}
+	if c.Master {
+		if err := a.store.RegisterMaster(c.Iface); err != nil {
+			return nil, err
+		}
 	}
 	go a.startSupervisorLoop(namespaces.WithNamespace(ctx, config.DefaultNamespace), c.Interval.Duration)
 	a.serveDNS()

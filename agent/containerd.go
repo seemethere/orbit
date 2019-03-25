@@ -1,6 +1,9 @@
 package agent
 
 import (
+	"os"
+	"strconv"
+
 	"github.com/containerd/containerd"
 	containers "github.com/containerd/containerd/api/services/containers/v1"
 	diff "github.com/containerd/containerd/api/services/diff/v1"
@@ -29,15 +32,13 @@ const defaultRuntime = "io.containerd.runc.v2"
 func init() {
 	plugin.Register(&plugin.Registration{
 		Type:   plugin.GRPCPlugin,
-		ID:     "orbit",
+		ID:     "stellarproject.io/orbit",
 		Config: &Config{},
 		Requires: []plugin.Type{
 			plugin.ServicePlugin,
 		},
 		InitFn: func(ic *plugin.InitContext) (interface{}, error) {
 			ic.Meta.Platforms = []is.Platform{platforms.DefaultSpec()}
-			exports := make(map[string]string)
-			exports["version"] = version.Version
 			c := ic.Config.(*Config)
 			if c.Iface == "" {
 				i, err := getDefaultIface()
@@ -53,27 +54,51 @@ func init() {
 				}
 				c.Domain = d
 			}
+			if c.ID == "" {
+				h, err := os.Hostname()
+				if err != nil {
+					return nil, err
+				}
+				c.ID = h
+			}
+			// set root and state from containerd plugins
 			c.Root = ic.Root
 			c.State = ic.State
+
+			server, err := newStore(c.Root, c.Master)
+			if err != nil {
+				return nil, err
+			}
+
+			// set orbit information
+			exports := make(map[string]string)
 			exports["interface"] = c.Iface
 			exports["domain"] = c.Domain
-			servicesOpts, err := getServicesOpts(ic)
-			if err != nil {
-				return nil, err
-			}
-			client, err := containerd.New(
-				"",
-				containerd.WithDefaultNamespace(config.DefaultNamespace),
-				containerd.WithServices(servicesOpts...),
-				containerd.WithDefaultRuntime(defaultRuntime),
-			)
-			if err != nil {
-				return nil, err
-			}
+			exports["store"] = server.Address()
+			exports["version"] = version.Version
+			exports["master"] = strconv.FormatBool(c.Master)
 			ic.Meta.Exports = exports
-			return New(ic.Context, c, client)
+
+			client, err := getClient(ic)
+			if err != nil {
+				return nil, err
+			}
+			return New(ic.Context, c, client, server)
 		},
 	})
+}
+
+func getClient(ic *plugin.InitContext) (*containerd.Client, error) {
+	servicesOpts, err := getServicesOpts(ic)
+	if err != nil {
+		return nil, err
+	}
+	return containerd.New(
+		"",
+		containerd.WithDefaultNamespace(config.DefaultNamespace),
+		containerd.WithServices(servicesOpts...),
+		containerd.WithDefaultRuntime(defaultRuntime),
+	)
 }
 
 func getDefaultIface() (string, error) {

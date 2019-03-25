@@ -10,16 +10,27 @@ import (
 )
 
 type Config struct {
-	ID            string   `toml:"id"` //TODO: remove for hostname
-	Root          string   `toml:"-"`
-	State         string   `toml:"-"`
-	Iface         string   `toml:"iface"`
-	Domain        string   `toml:"domain,omitempty" json:"-"` // TODO: hostname and domain name
-	Nameservers   []string `toml:"nameservers"`
-	PlainRemotes  []string `toml:"plain_remotes"`
-	VolumeRoot    string   `toml:"volume_root"`
-	Interval      duration `toml:"supervisor_interval"`
-	BridgeAddress string   `toml:"bridge_address" json:"-"`
+	// UTS
+	ID     string `toml:"id"`                        //TODO: remove for hostname
+	Domain string `toml:"domain,omitempty" json:"-"` // TODO: hostname and domain name
+
+	// containerd provided
+	Root  string `toml:"-"`
+	State string `toml:"-"`
+
+	// DNS
+	Nameservers []string `toml:"nameservers"`
+
+	// Networking
+	BridgeAddress string `toml:"bridge_address"`
+	Iface         string `toml:"iface"`
+
+	PlainRemotes []string `toml:"plain_remotes"`
+	VolumeRoot   string   `toml:"volume_root"`
+	Interval     duration `toml:"interval"`
+
+	// Store
+	Master bool `toml:"master"`
 }
 
 func (c *Config) Paths(id string) opts.Paths {
