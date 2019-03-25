@@ -2,6 +2,7 @@ package agent
 
 import (
 	"fmt"
+	"net"
 	"path/filepath"
 	"sync"
 
@@ -60,7 +61,11 @@ func newStoreClient(master string) (*store, error) {
 		}, 5)
 		conn := slave.Get()
 		defer conn.Close()
-		if _, err := conn.Do("SLAVEOF", master, storePort); err != nil {
+		host, _, err := net.SplitHostPort(master)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := conn.Do("SLAVEOF", host, storePort); err != nil {
 			return nil, err
 		}
 	}

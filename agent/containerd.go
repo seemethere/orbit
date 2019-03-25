@@ -61,6 +61,7 @@ func init() {
 				}
 				c.ID = h
 			}
+
 			// set root and state from containerd plugins
 			c.Root = ic.Root
 			c.State = ic.State
