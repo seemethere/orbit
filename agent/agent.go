@@ -998,6 +998,7 @@ func (s *Agent) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 	question := req.Question[0]
 	key := getKey(question)
 	if key.Domain != s.config.Domain {
+		logrus.WithField("domain", key.Domain).Info("forward DNS")
 		s.ServeDNSForward(w, req)
 		return
 	}
@@ -1043,21 +1044,6 @@ func (s *Agent) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 
 func (s *Agent) ServeDNSForward(w dns.ResponseWriter, req *dns.Msg) {
 	nameservers := defaultNameservers
-	if len(nameservers) == 0 {
-		m := &dns.Msg{
-			MsgHdr: dns.MsgHdr{
-				Authoritative:      false,
-				RecursionAvailable: true,
-			},
-		}
-
-		m.SetReply(req)
-		m.SetRcode(req, dns.RcodeServerFailure)
-		w.WriteMsg(m)
-
-		return
-	}
-
 	var (
 		proto  = getProto(w)
 		client = &dns.Client{Net: proto, ReadTimeout: 5 * time.Second}

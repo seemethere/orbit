@@ -29,7 +29,7 @@ func main() {
 		cli.StringFlag{
 			Name:   "agent",
 			Usage:  "agent address",
-			Value:  "0.0.0.0:1337",
+			Value:  "0.0.0.0:9100",
 			EnvVar: "AGENT_ADDR",
 		},
 		cli.StringFlag{

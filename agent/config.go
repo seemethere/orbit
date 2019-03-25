@@ -13,8 +13,8 @@ import (
 
 type Config struct {
 	// UTS
-	ID     string `toml:"id"`                        //TODO: remove for hostname
-	Domain string `toml:"domain,omitempty" json:"-"` // TODO: hostname and domain name
+	ID     string `toml:"id"`
+	Domain string `toml:"domain,omitempty"`
 
 	// containerd provided
 	Root  string `toml:"-"`
