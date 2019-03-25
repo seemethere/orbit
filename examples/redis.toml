@@ -3,6 +3,7 @@ image = "docker.io/library/redis:4.0-alpine"
 
 [network]
 	type = "macvlan"
+	name = "orbit0"
 	[network.ipam]
 		type = "dhcp"
 

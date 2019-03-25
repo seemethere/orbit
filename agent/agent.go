@@ -845,22 +845,22 @@ func (a *Agent) start(ctx context.Context, container containerd.Container) error
 
 	config, err := opts.GetConfig(ctx, container)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "get container config")
 	}
 	desc, err := opts.GetRestoreDesc(ctx, container)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "get restore descriptor")
 	}
 	if err := a.setupRuntimeFiles(ctx, container); err != nil {
-		return err
+		return errors.Wrap(err, "setup runtime files")
 	}
 	network, err := a.getNetwork(config.Network)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "get network")
 	}
 	ip, err := network.Create(ctx, container)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "create network")
 	}
 	if ip != "" {
 		logrus.WithField("id", container.ID()).WithField("ip", ip).Debug("setup network interface")
@@ -873,16 +873,16 @@ func (a *Agent) start(ctx context.Context, container containerd.Container) error
 				Check: srv.Check,
 			}
 			if err := a.store.Register(container.ID(), service); err != nil {
-				return err
+				return errors.Wrap(err, "register container services")
 			}
 		}
 	}
 	if err := container.Update(ctx, opts.WithIP(ip), opts.WithoutRestore, withStatus(containerd.Running)); err != nil {
-		return err
+		return errors.Wrap(err, "update container with ip")
 	}
 	task, err := container.NewTask(ctx, cio.BinaryIO("orbit-log", nil), opts.WithTaskRestore(desc))
 	if err != nil {
-		return err
+		return errors.Wrap(err, "create new container task")
 	}
 	return task.Start(ctx)
 }
@@ -977,9 +977,6 @@ func (a *Agent) getNetwork(network *types.Any) (network, error) {
 		}, nil
 	case *v1.CNINetwork:
 		networkType = c.Type
-		if c.Type == "macvlan" && a.config.BridgeAddress == "" {
-			return nil, errors.New("bridge_address must be specified with macvlan")
-		}
 		if c.Name == "" {
 			c.Name = a.config.Domain
 		}
