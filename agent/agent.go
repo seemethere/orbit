@@ -1015,7 +1015,6 @@ func (s *Agent) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 		m.SetRcode(req, dns.RcodeNameError)
 		return
 	}
-
 	service, err := s.store.fetchService(key.Name)
 	if err != nil {
 		logrus.WithError(err).Error("get A records")
@@ -1038,12 +1037,15 @@ func (s *Agent) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 		m.SetRcode(req, dns.RcodeNameError)
 	}
 	if err := w.WriteMsg(m); err != nil {
-		logrus.WithError(err).Error("write")
+		logrus.WithError(err).Error("write dns msg")
 	}
 }
 
 func (s *Agent) ServeDNSForward(w dns.ResponseWriter, req *dns.Msg) {
-	nameservers := defaultNameservers
+	nameservers := []string{
+		"8.8.8.8:53",
+		"8.8.4.4:53",
+	}
 	var (
 		proto  = getProto(w)
 		client = &dns.Client{Net: proto, ReadTimeout: 5 * time.Second}
@@ -1059,7 +1061,6 @@ func (s *Agent) ServeDNSForward(w dns.ResponseWriter, req *dns.Msg) {
 			return
 		}
 		logrus.WithError(err).Errorf("exchange %s", nameservers[nsid])
-
 		// Seen an error, this can only mean, "DNSServer not reached", try again
 		// but only if we have not exausted our nameservers
 		try++

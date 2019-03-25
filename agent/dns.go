@@ -64,6 +64,6 @@ func startDnsServer(mux *dns.ServeMux, net, addr string, udpsize int, timeout ti
 		WriteTimeout: timeout,
 	}
 	if err := s.ListenAndServe(); err != nil {
-		logrus.WithError(err).Fatal("listen")
+		logrus.WithError(err).Fatal("listen dns server")
 	}
 }

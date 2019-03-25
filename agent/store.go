@@ -19,7 +19,7 @@ const (
 	serviceFormat  = "orbit:%s"
 	storePort      = 6379
 	localStoreAddr = "127.0.0.1:6379"
-	masterDomain   = "master.orbit"
+	masterDomain   = "master"
 )
 
 func newStore(root string, master bool) (*server.App, error) {
