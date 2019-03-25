@@ -1043,9 +1043,6 @@ func (s *Agent) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 
 func (s *Agent) ServeDNSForward(w dns.ResponseWriter, req *dns.Msg) {
 	nameservers := defaultNameservers
-	for i, ns := range nameservers {
-		nameservers[i] = ns + ":53"
-	}
 	if len(nameservers) == 0 {
 		m := &dns.Msg{
 			MsgHdr: dns.MsgHdr{
