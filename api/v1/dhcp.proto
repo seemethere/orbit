@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+package io.orbit.v1;
+
+import weak "gogoproto/gogo.proto";
+import "google/protobuf/empty.proto";
+
+option go_package = "github.com/stellarproject/orbit/api/v1;v1";
+
+service DHCP {
+	rpc DHCPAdd(DHCPAddRequest) returns (DHCPAddResponse);
+	rpc DHCPDelete(DHCPDeleteRequest) returns (google.protobuf.Empty);
+}
+
+message DHCPAddRequest {
+	string id = 1;
+	string iface = 2;
+	string netns = 3;
+	string name = 4;
+}
+
+message DHCPAddResponse {
+	repeated CNIIP ips = 1 [(gogoproto.customname) = "IPs"];
+	repeated CNIRoute routes = 2;
+}
+
+message DHCPDeleteRequest {
+	string id = 1;
+	string name = 2;
+	string iface = 3;
+	string netns = 4;
+}
+
+message CNIIP {
+	string version = 1;
+	CNIIPNet address = 2;
+	bytes gateway = 3;
+}
+
+message CNIRoute {
+	CNIIPNet dst = 1;
+	bytes gw = 2;
+}
+
+message CNIIPNet {
+	bytes ip = 1 [(gogoproto.customname) = "IP"];
+	bytes mask = 2;
+}

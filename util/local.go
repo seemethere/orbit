@@ -1,12 +1,13 @@
 package util
 
 import (
-	"github.com/stellarproject/orbit/api/v1"
+	v1 "github.com/stellarproject/orbit/api/v1"
 	"google.golang.org/grpc"
 )
 
 type LocalAgent struct {
 	v1.AgentClient
+	v1.DHCPServer
 	conn *grpc.ClientConn
 }
 

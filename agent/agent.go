@@ -90,6 +90,7 @@ func New(ctx context.Context, c *Config, client *containerd.Client, storeServer 
 		client: client,
 		store:  newStoreClient(masterAddr),
 		server: storeServer,
+		dhcp:   newDHCP(),
 	}
 	if c.Master {
 		if err := a.store.RegisterMaster(c.Iface); err != nil {
@@ -103,11 +104,12 @@ func New(ctx context.Context, c *Config, client *containerd.Client, storeServer 
 }
 
 type Agent struct {
+	supervisorMu sync.Mutex
 	client       *containerd.Client
 	config       *Config
 	store        *store
 	server       *server.App
-	supervisorMu sync.Mutex
+	dhcp         *DHCP
 }
 
 func (a *Agent) Close() error {

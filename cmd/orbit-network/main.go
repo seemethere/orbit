@@ -15,48 +15,76 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
-	"net/rpc"
+	"net"
+	"os"
 	"path/filepath"
+	"runtime"
 
+	"github.com/containerd/containerd/defaults"
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/types"
 	"github.com/containernetworking/cni/pkg/types/current"
 	"github.com/containernetworking/cni/pkg/version"
+	raven "github.com/getsentry/raven-go"
+	v1 "github.com/stellarproject/orbit/api/v1"
+	"github.com/stellarproject/orbit/cmd"
+	"github.com/stellarproject/orbit/util"
+	bv "github.com/stellarproject/orbit/version"
+	"github.com/urfave/cli"
 )
 
-const defaultSocketPath = "/run/cni/dhcp.sock"
+func init() {
+	// this ensures that main runs only on main thread (thread group leader).
+	// since namespace ops (unshare, setns) are done for a single thread, we
+	// must ensure that the goroutine does not jump from OS thread to thread
+	runtime.LockOSThread()
+}
+
+func main() {
+	switch os.Args[0] {
+	case "macvlan":
+		skel.PluginMain(macvlanAdd, macvlanDelete, version.All)
+	case "dhcp":
+		skel.PluginMain(dhcpAdd, dhcpDelete, version.All)
+	default:
+		app := cli.NewApp()
+		app.Name = "orbit-network"
+		app.Version = bv.Version
+		app.Usage = "orbit network namespace creation"
+		app.Description = cmd.Banner
+		app.Flags = []cli.Flag{
+			cli.BoolFlag{
+				Name:  "debug",
+				Usage: "enable debug output in the logs",
+			},
+			cli.StringFlag{
+				Name:   "sentry-dsn",
+				Usage:  "sentry DSN",
+				EnvVar: "SENTRY_DSN",
+			},
+		}
+		app.Before = func(clix *cli.Context) error {
+			if dsn := clix.GlobalString("sentry-dsn"); dsn != "" {
+				raven.SetDSN(dsn)
+				raven.DefaultClient.SetRelease(bv.Version)
+			}
+			return nil
+		}
+		app.Commands = []cli.Command{
+			networkCreateCommand,
+		}
+		if err := app.Run(os.Args); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			raven.CaptureErrorAndWait(err, nil)
+			os.Exit(1)
+		}
+	}
+}
 
 func dhcpAdd(args *skel.CmdArgs) error {
-	// Plugin must return result in same version as specified in netconf
-	versionDecoder := &version.ConfigDecoder{}
-	confVersion, err := versionDecoder.Decode(args.StdinData)
-	if err != nil {
-		return err
-	}
-
-	result := &current.Result{}
-	if err := rpcCall("DHCP.Allocate", args, result); err != nil {
-		return err
-	}
-	return types.PrintResult(result, confVersion)
-}
-
-func dhcpDelete(args *skel.CmdArgs) error {
-	result := struct{}{}
-	if err := rpcCall("DHCP.Release", args, &result); err != nil {
-		return err
-	}
-	return nil
-}
-
-func rpcCall(method string, args *skel.CmdArgs, result interface{}) error {
-	socketPath := defaultSocketPath
-	client, err := rpc.DialHTTP("unix", socketPath)
-	if err != nil {
-		return fmt.Errorf("error dialing DHCP daemon: %v", err)
-	}
-
 	// The daemon may be running under a different working dir
 	// so make sure the netns path is absolute.
 	netns, err := filepath.Abs(args.Netns)
@@ -65,9 +93,77 @@ func rpcCall(method string, args *skel.CmdArgs, result interface{}) error {
 	}
 	args.Netns = netns
 
-	err = client.Call(method, args, result)
+	// Plugin must return result in same version as specified in netconf
+	versionDecoder := &version.ConfigDecoder{}
+	confVersion, err := versionDecoder.Decode(args.StdinData)
 	if err != nil {
-		return fmt.Errorf("error calling %v: %v", method, err)
+		return err
 	}
-	return nil
+
+	agent, err := util.Agent(defaults.DefaultAddress)
+	if err != nil {
+		return err
+	}
+	defer agent.Close()
+
+	var conf types.NetConf
+	if err := json.Unmarshal(args.StdinData, &conf); err != nil {
+		return err
+	}
+
+	ctx := context.Background()
+	result, err := agent.DHCPAdd(ctx, &v1.DHCPAddRequest{
+		ID:    args.ContainerID,
+		Netns: args.Netns,
+		Iface: args.IfName,
+		Name:  conf.Name,
+	})
+	if err != nil {
+		return err
+	}
+	out := &current.Result{}
+	for _, ip := range result.IPs {
+		out.IPs = append(out.IPs, &current.IPConfig{
+			Version: ip.Version,
+			Address: net.IPNet{
+				IP:   net.IP(ip.Address.IP),
+				Mask: net.IPMask(ip.Address.Mask),
+			},
+			Gateway: net.IP(ip.Gateway),
+		})
+	}
+	for _, r := range result.Routes {
+		out.Routes = append(out.Routes, &types.Route{
+			Dst: net.IPNet{
+				IP:   net.IP(r.Dst.IP),
+				Mask: net.IPMask(r.Dst.Mask),
+			},
+			GW: net.IP(r.Gw),
+		})
+	}
+	return types.PrintResult(out, confVersion)
+}
+
+func dhcpDelete(args *skel.CmdArgs) error {
+	// The daemon may be running under a different working dir
+	// so make sure the netns path is absolute.
+	netns, err := filepath.Abs(args.Netns)
+	if err != nil {
+		return fmt.Errorf("failed to make %q an absolute path: %v", args.Netns, err)
+	}
+	args.Netns = netns
+
+	agent, err := util.Agent(defaults.DefaultAddress)
+	if err != nil {
+		return err
+	}
+	defer agent.Close()
+
+	ctx := context.Background()
+	_, err = agent.DHCPDelete(ctx, &v1.DHCPDeleteRequest{
+		ID:    args.ContainerID,
+		Netns: args.Netns,
+		Iface: args.IfName,
+	})
+	return err
 }

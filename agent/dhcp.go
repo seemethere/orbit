@@ -1,3 +1,64 @@
+package agent
+
+import (
+	"context"
+	"errors"
+	"os"
+	"path/filepath"
+
+	"fmt"
+	"log"
+	"math/rand"
+	"net"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	proto "github.com/gogo/protobuf/types"
+	v1 "github.com/stellarproject/orbit/api/v1"
+
+	"github.com/d2g/dhcp4"
+	"github.com/vishvananda/netlink"
+
+	"github.com/containernetworking/plugins/pkg/ns"
+)
+
+func (a *Agent) DHCPAdd(ctx context.Context, r *v1.DHCPAddRequest) (*v1.DHCPAddResponse, error) {
+	clientID := generateClientID(r.ID, r.Name, r.Iface)
+	l, err := AcquireLease(clientID, r.Netns, r.Iface)
+	if err != nil {
+		return nil, err
+	}
+
+	ipn, err := l.IPNet()
+	if err != nil {
+		l.Stop()
+		return nil, err
+	}
+
+	a.dhcp.setLease(clientID, l)
+	result := &v1.DHCPAddResponse{
+		IPs: []*v1.CNIIP{
+			{
+				Version: "4",
+				Address: ipn,
+				Gateway: []byte(l.Gateway()),
+			},
+		},
+		Routes: l.Routes(),
+	}
+	return result, nil
+}
+
+func (a *Agent) DHCPDelete(ctx context.Context, r *v1.DHCPDeleteRequest) (*proto.Empty, error) {
+	clientID := generateClientID(r.ID, r.Name, r.Iface)
+	if l := a.dhcp.getLease(clientID); l != nil {
+		l.Stop()
+		a.dhcp.clearLease(clientID)
+	}
+	return empty, nil
+}
+
 // Copyright 2015 CNI authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,25 +72,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
-package main
-
-import (
-	"fmt"
-	"log"
-	"math/rand"
-	"net"
-	"sync"
-	"sync/atomic"
-	"time"
-
-	"github.com/d2g/dhcp4"
-	"github.com/d2g/dhcp4client"
-	"github.com/vishvananda/netlink"
-
-	"github.com/containernetworking/cni/pkg/types"
-	"github.com/containernetworking/plugins/pkg/ns"
-)
 
 // RFC 2131 suggests using exponential backoff, starting with 4sec
 // and randomized to +/- 1sec
@@ -289,15 +331,15 @@ func (l *DHCPLease) release() error {
 	return nil
 }
 
-func (l *DHCPLease) IPNet() (*net.IPNet, error) {
+func (l *DHCPLease) IPNet() (*v1.CNIIPNet, error) {
 	mask := parseSubnetMask(l.opts)
 	if mask == nil {
 		return nil, fmt.Errorf("DHCP option Subnet Mask not found in DHCPACK")
 	}
 
-	return &net.IPNet{
-		IP:   l.ack.YIAddr(),
-		Mask: mask,
+	return &v1.CNIIPNet{
+		IP:   []byte(l.ack.YIAddr()),
+		Mask: []byte(mask),
 	}, nil
 }
 
@@ -305,8 +347,8 @@ func (l *DHCPLease) Gateway() net.IP {
 	return parseRouter(l.opts)
 }
 
-func (l *DHCPLease) Routes() []*types.Route {
-	routes := []*types.Route{}
+func (l *DHCPLease) Routes() []*v1.CNIRoute {
+	routes := []*v1.CNIRoute{}
 
 	// RFC 3442 states that if Classless Static Routes (option 121)
 	// exist, we ignore Static Routes (option 33) and the Router/Gateway.
@@ -322,9 +364,14 @@ func (l *DHCPLease) Routes() []*types.Route {
 	// add a default route in the routes section.
 	if gw := l.Gateway(); gw != nil {
 		_, defaultRoute, _ := net.ParseCIDR("0.0.0.0/0")
-		routes = append(routes, &types.Route{Dst: *defaultRoute, GW: gw})
+		routes = append(routes, &v1.CNIRoute{
+			Dst: &v1.CNIIPNet{
+				IP:   []byte(defaultRoute.IP),
+				Mask: []byte(defaultRoute.Mask),
+			},
+			Gw: []byte(gw),
+		})
 	}
-
 	return routes
 }
 
@@ -354,16 +401,60 @@ func backoffRetry(f func() (*dhcp4.Packet, error)) (*dhcp4.Packet, error) {
 	return nil, errNoMoreTries
 }
 
-func newDHCPClient(link netlink.Link, clientID string) (*dhcp4client.Client, error) {
-	pktsock, err := dhcp4client.NewPacketSock(link.Attrs().Index)
-	if err != nil {
+const (
+	listenFdsStart = 3
+	resendCount    = 3
+)
+
+var errNoMoreTries = errors.New("no more tries")
+
+type DHCP struct {
+	mux    sync.Mutex
+	leases map[string]*DHCPLease
+}
+
+func newDHCP() *DHCP {
+	return &DHCP{
+		leases: make(map[string]*DHCPLease),
+	}
+}
+
+func generateClientID(containerID string, netName string, ifName string) string {
+	return containerID + "/" + netName + "/" + ifName
+}
+
+func (d *DHCP) getLease(clientID string) *DHCPLease {
+	d.mux.Lock()
+	defer d.mux.Unlock()
+
+	// TODO(eyakubovich): hash it to avoid collisions
+	l, ok := d.leases[clientID]
+	if !ok {
+		return nil
+	}
+	return l
+}
+
+func (d *DHCP) setLease(clientID string, l *DHCPLease) {
+	d.mux.Lock()
+	defer d.mux.Unlock()
+
+	// TODO(eyakubovich): hash it to avoid collisions
+	d.leases[clientID] = l
+}
+
+//func (d *DHCP) clearLease(contID, netName, ifName string) {
+func (d *DHCP) clearLease(clientID string) {
+	d.mux.Lock()
+	defer d.mux.Unlock()
+
+	// TODO(eyakubovich): hash it to avoid collisions
+	delete(d.leases, clientID)
+}
+
+func getListener(socketPath string) (net.Listener, error) {
+	if err := os.MkdirAll(filepath.Dir(socketPath), 0700); err != nil {
 		return nil, err
 	}
-
-	return dhcp4client.New(
-		dhcp4client.HardwareAddr(link.Attrs().HardwareAddr),
-		dhcp4client.Timeout(5*time.Second),
-		dhcp4client.Broadcast(false),
-		dhcp4client.Connection(pktsock),
-	)
+	return net.Listen("unix", socketPath)
 }

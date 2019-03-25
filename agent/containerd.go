@@ -120,6 +120,7 @@ func getDefaultIface() (string, error) {
 
 func (a *Agent) Register(server *grpc.Server) error {
 	v1.RegisterAgentServer(server, a)
+	v1.RegisterDHCPServer(server, a)
 	return nil
 }
 
