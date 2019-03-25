@@ -59,6 +59,7 @@ func main() {
 			raven.CaptureErrorAndWait(err, nil)
 			os.Exit(1)
 		}
+		return
 	}
 	skel.PluginMain(dhcpAdd, dhcpDelete, version.All)
 }

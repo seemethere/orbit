@@ -5,7 +5,7 @@ image = "docker.io/library/redis:4.0-alpine"
 	type = "macvlan"
 	name = "orbit0"
 	[network.ipam]
-		type = "dhcp"
+		type = "orbit-network"
 
 [resources]
 	cpu = 1.5

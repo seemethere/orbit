@@ -7,7 +7,7 @@ import (
 
 type LocalAgent struct {
 	v1.AgentClient
-	v1.DHCPServer
+	v1.DHCPClient
 	conn *grpc.ClientConn
 }
 
@@ -22,6 +22,7 @@ func Agent(address string) (*LocalAgent, error) {
 	}
 	return &LocalAgent{
 		AgentClient: v1.NewAgentClient(conn),
+		DHCPClient:  v1.NewDHCPClient(conn),
 		conn:        conn,
 	}, nil
 }
