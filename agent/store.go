@@ -46,14 +46,17 @@ func newStore(root string, master bool) (*server.App, error) {
 }
 
 func newStoreClient(master string) (*store, error) {
-	if master == "" {
+	isMaster := master == ""
+	if isMaster {
 		master = localStoreAddr
 	}
+
 	m := redis.NewPool(func() (redis.Conn, error) {
 		return redis.Dial("tcp", master)
 	}, 5)
+
 	var slave *redis.Pool
-	if master == "" {
+	if isMaster {
 		slave = m
 	} else {
 		slave = redis.NewPool(func() (redis.Conn, error) {
