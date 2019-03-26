@@ -131,6 +131,7 @@ func (a *Agent) Register(server *grpc.Server) error {
 
 func (a *Agent) RegisterTCP(server *grpc.Server) error {
 	v1.RegisterAgentServer(server, a)
+	v1.RegisterDHCPServer(server, a)
 	return nil
 }
 
