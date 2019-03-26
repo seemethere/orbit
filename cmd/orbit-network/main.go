@@ -22,18 +22,21 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	"github.com/containerd/containerd/defaults"
+	"github.com/containerd/containerd/pkg/dialer"
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/types"
 	"github.com/containernetworking/cni/pkg/types/current"
 	"github.com/containernetworking/cni/pkg/version"
 	raven "github.com/getsentry/raven-go"
+	"github.com/pkg/errors"
 	v1 "github.com/stellarproject/orbit/api/v1"
 	"github.com/stellarproject/orbit/cmd"
-	"github.com/stellarproject/orbit/util"
 	bv "github.com/stellarproject/orbit/version"
 	"github.com/urfave/cli"
+	"google.golang.org/grpc"
 )
 
 func main() {
@@ -80,11 +83,12 @@ func dhcpAdd(args *skel.CmdArgs) error {
 		return err
 	}
 
-	agent, err := util.Agent(defaults.DefaultAddress)
+	conn, err := connector()
 	if err != nil {
 		return err
 	}
-	defer agent.Close()
+	defer conn.Close()
+	agent := v1.NewDHCPClient(conn)
 
 	var conf types.NetConf
 	if err := json.Unmarshal(args.StdinData, &conf); err != nil {
@@ -132,12 +136,12 @@ func dhcpDelete(args *skel.CmdArgs) error {
 		return fmt.Errorf("failed to make %q an absolute path: %v", args.Netns, err)
 	}
 	args.Netns = netns
-
-	agent, err := util.Agent(defaults.DefaultAddress)
+	conn, err := connector()
 	if err != nil {
 		return err
 	}
-	defer agent.Close()
+	defer conn.Close()
+	agent := v1.NewDHCPClient(conn)
 
 	ctx := context.Background()
 	_, err = agent.DHCPDelete(ctx, &v1.DHCPDeleteRequest{
@@ -146,4 +150,14 @@ func dhcpDelete(args *skel.CmdArgs) error {
 		Iface: args.IfName,
 	})
 	return err
+}
+
+func connector() (*grpc.ClientConn, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	conn, err := grpc.DialContext(ctx, dialer.DialAddress(defaults.DefaultAddress), grpc.WithInsecure())
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to dial %q", defaults.DefaultAddress)
+	}
+	return conn, nil
 }

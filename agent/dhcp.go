@@ -15,6 +15,7 @@ import (
 	"time"
 
 	proto "github.com/gogo/protobuf/types"
+	"github.com/sirupsen/logrus"
 	v1 "github.com/stellarproject/orbit/api/v1"
 
 	"github.com/d2g/dhcp4"
@@ -25,6 +26,7 @@ import (
 
 func (a *Agent) DHCPAdd(ctx context.Context, r *v1.DHCPAddRequest) (*v1.DHCPAddResponse, error) {
 	clientID := generateClientID(r.ID, r.Name, r.Iface)
+	logrus.Infof("getting lease for %s", clientID)
 	l, err := AcquireLease(clientID, r.Netns, r.Iface)
 	if err != nil {
 		return nil, err
@@ -52,6 +54,7 @@ func (a *Agent) DHCPAdd(ctx context.Context, r *v1.DHCPAddRequest) (*v1.DHCPAddR
 
 func (a *Agent) DHCPDelete(ctx context.Context, r *v1.DHCPDeleteRequest) (*proto.Empty, error) {
 	clientID := generateClientID(r.ID, r.Name, r.Iface)
+	logrus.Infof("deleting lease for %s", clientID)
 	if l := a.dhcp.getLease(clientID); l != nil {
 		l.Stop()
 		a.dhcp.clearLease(clientID)
