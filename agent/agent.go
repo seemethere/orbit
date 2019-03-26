@@ -76,9 +76,6 @@ func New(ctx context.Context, c *Config, client *containerd.Client, storeServer 
 	if err := setupApparmor(); err != nil {
 		return nil, err
 	}
-	if err := setupHostResolvConf(); err != nil {
-		return nil, err
-	}
 	for _, r := range c.PlainRemotes {
 		plainRemotes[r] = true
 	}
@@ -99,6 +96,7 @@ func New(ctx context.Context, c *Config, client *containerd.Client, storeServer 
 	}
 	if c.Master {
 		if err := a.store.RegisterMaster(c.Iface); err != nil {
+			a.Close()
 			return nil, err
 		}
 	}
@@ -111,17 +109,22 @@ func New(ctx context.Context, c *Config, client *containerd.Client, storeServer 
 			Netns: "/proc/1/ns/net",
 		})
 		if err != nil {
+			a.Close()
 			return nil, err
 		}
 		ip := net.IP(r.IPs[0].Address.IP).String()
 		if err := route.Create(c.Iface, ip); err != nil {
+			a.Close()
 			return nil, err
 		}
 		c.BridgeAddress = ip
 	}
 	go a.startSupervisorLoop(namespaces.WithNamespace(ctx, config.DefaultNamespace), c.Interval.Duration)
 	a.serveDNS()
-
+	if err := setupHostResolvConf(); err != nil {
+		a.Close()
+		return nil, err
+	}
 	return a, nil
 }
 
@@ -136,9 +139,12 @@ type Agent struct {
 
 func (a *Agent) Close() error {
 	a.supervisorMu.Lock()
-
-	a.store.Close()
-	a.server.Close()
+	if a.store != nil {
+		a.store.Close()
+	}
+	if a.server != nil {
+		a.server.Close()
+	}
 	return nil
 }
 
