@@ -133,6 +133,10 @@ func dhcpDelete(args *skel.CmdArgs) error {
 		return fmt.Errorf("failed to make %q an absolute path: %v", args.Netns, err)
 	}
 	args.Netns = netns
+	var conf types.NetConf
+	if err := json.Unmarshal(args.StdinData, &conf); err != nil {
+		return err
+	}
 
 	agent, err := util.Agent(address)
 	if err != nil {
@@ -144,6 +148,7 @@ func dhcpDelete(args *skel.CmdArgs) error {
 	_, err = agent.DHCPDelete(ctx, &v1.DHCPDeleteRequest{
 		ID:    args.ContainerID,
 		Netns: args.Netns,
+		Name:  conf.Name,
 		Iface: args.IfName,
 	})
 	return err

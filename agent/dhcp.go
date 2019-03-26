@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 
 	"fmt"
-	"log"
 	"math/rand"
 	"net"
 	"sync"
@@ -31,7 +30,6 @@ func (a *Agent) DHCPAdd(ctx context.Context, r *v1.DHCPAddRequest) (*v1.DHCPAddR
 	if err != nil {
 		return nil, err
 	}
-
 	ipn, err := l.IPNet()
 	if err != nil {
 		l.Stop()
@@ -117,7 +115,7 @@ func AcquireLease(clientID, netns, ifName string) (*DHCPLease, error) {
 		stop:     make(chan struct{}),
 	}
 
-	log.Printf("%v: acquiring lease", clientID)
+	logrus.Printf("%v: acquiring lease", clientID)
 
 	l.wg.Add(1)
 	go func() {
@@ -135,7 +133,7 @@ func AcquireLease(clientID, netns, ifName string) (*DHCPLease, error) {
 				return err
 			}
 
-			log.Printf("%v: lease acquired, expiration is %v", l.clientID, l.expireTime)
+			logrus.Printf("%v: lease acquired, expiration is %v", l.clientID, l.expireTime)
 
 			errCh <- nil
 
@@ -168,7 +166,7 @@ func (l *DHCPLease) acquire() error {
 	defer c.Close()
 
 	if (l.link.Attrs().Flags & net.FlagUp) != net.FlagUp {
-		log.Printf("Link %q down. Attempting to set up", l.link.Attrs().Name)
+		logrus.Printf("Link %q down. Attempting to set up", l.link.Attrs().Name)
 		if err = netlink.LinkSetUp(l.link); err != nil {
 			return err
 		}
@@ -236,35 +234,35 @@ func (l *DHCPLease) maintain() {
 		case leaseStateBound:
 			sleepDur = l.renewalTime.Sub(time.Now())
 			if sleepDur <= 0 {
-				log.Printf("%v: renewing lease", l.clientID)
+				logrus.Printf("%v: renewing lease", l.clientID)
 				state = leaseStateRenewing
 				continue
 			}
 
 		case leaseStateRenewing:
 			if err := l.renew(); err != nil {
-				log.Printf("%v: %v", l.clientID, err)
+				logrus.Printf("%v: %v", l.clientID, err)
 
 				if time.Now().After(l.rebindingTime) {
-					log.Printf("%v: renawal time expired, rebinding", l.clientID)
+					logrus.Printf("%v: renawal time expired, rebinding", l.clientID)
 					state = leaseStateRebinding
 				}
 			} else {
-				log.Printf("%v: lease renewed, expiration is %v", l.clientID, l.expireTime)
+				logrus.Printf("%v: lease renewed, expiration is %v", l.clientID, l.expireTime)
 				state = leaseStateBound
 			}
 
 		case leaseStateRebinding:
 			if err := l.acquire(); err != nil {
-				log.Printf("%v: %v", l.clientID, err)
+				logrus.Printf("%v: %v", l.clientID, err)
 
 				if time.Now().After(l.expireTime) {
-					log.Printf("%v: lease expired, bringing interface DOWN", l.clientID)
+					logrus.Printf("%v: lease expired, bringing interface DOWN", l.clientID)
 					l.downIface()
 					return
 				}
 			} else {
-				log.Printf("%v: lease rebound, expiration is %v", l.clientID, l.expireTime)
+				logrus.Printf("%v: lease rebound, expiration is %v", l.clientID, l.expireTime)
 				state = leaseStateBound
 			}
 		}
@@ -274,7 +272,7 @@ func (l *DHCPLease) maintain() {
 
 		case <-l.stop:
 			if err := l.release(); err != nil {
-				log.Printf("%v: failed to release DHCP lease: %v", l.clientID, err)
+				logrus.Printf("%v: failed to release DHCP lease: %v", l.clientID, err)
 			}
 			return
 		}
@@ -283,7 +281,7 @@ func (l *DHCPLease) maintain() {
 
 func (l *DHCPLease) downIface() {
 	if err := netlink.LinkSetDown(l.link); err != nil {
-		log.Printf("%v: failed to bring %v interface DOWN: %v", l.clientID, l.link.Attrs().Name, err)
+		logrus.Printf("%v: failed to bring %v interface DOWN: %v", l.clientID, l.link.Attrs().Name, err)
 	}
 }
 
@@ -317,7 +315,7 @@ func (l *DHCPLease) renew() error {
 }
 
 func (l *DHCPLease) release() error {
-	log.Printf("%v: releasing lease", l.clientID)
+	logrus.Printf("%v: releasing lease", l.clientID)
 
 	c, err := newDHCPClient(l.link, l.clientID)
 	if err != nil {
@@ -393,7 +391,7 @@ func backoffRetry(f func() (*dhcp4.Packet, error)) (*dhcp4.Packet, error) {
 			return pkt, nil
 		}
 
-		log.Print(err)
+		logrus.Print(err)
 
 		time.Sleep(baseDelay + jitter(time.Second))
 
