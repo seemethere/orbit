@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"fmt"
 	"math/rand"
@@ -119,6 +120,7 @@ func AcquireLease(clientID, netns, ifName string) (*DHCPLease, error) {
 
 	l.wg.Add(1)
 	go func() {
+		runtime.LockOSThread()
 		errCh <- ns.WithNetNSPath(netns, func(_ ns.NetNS) error {
 			defer l.wg.Done()
 
