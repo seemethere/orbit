@@ -25,11 +25,6 @@ type Config struct {
 }
 
 func New(c Config, n gocni.CNI) (*cni, error) {
-	if c.Type == "macvlan" {
-		if err := route.Create(c.Iface, c.BridgeAddr); err != nil {
-			return nil, err
-		}
-	}
 	return &cni{
 		network: n,
 		config:  c,

@@ -39,6 +39,7 @@ func (a *Agent) DHCPAdd(ctx context.Context, r *v1.DHCPAddRequest) (*v1.DHCPAddR
 	}
 
 	a.dhcp.setLease(clientID, l)
+	logrus.Infof("allocated %s", ipn)
 	result := &v1.DHCPAddResponse{
 		IPs: []*v1.CNIIP{
 			{
