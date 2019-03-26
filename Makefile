@@ -1,13 +1,25 @@
 PACKAGES=$(shell go list ./... | grep -v /vendor/)
 REVISION=$(shell git rev-parse HEAD)
-GO_LDFLAGS=-s -w -X github.com/stellarproject/orbit/version.Version=$(REVISION)
 
-all:
-	rm -f bin/*
+GO_VERBOSE=
+ifdef VERBOSE
+	GO_VERBOSE=-v
+endif
+
+GO          := go
+GO_LDFLAGS   =-s -w -X github.com/stellarproject/orbit/version.Version=$(REVISION)
+GO_BUILD     =$(GO) build $(GO_VERBOSE) -ldflags '${GO_LDFLAGS}'
+BINARIES     =ob orbit-network orbit-log
+
+all: clean $(addprefix bin/,$(BINARIES))
 	go build -v -ldflags '${GO_LDFLAGS}' github.com/stellarproject/orbit/agent
-	go build -o bin/ob -v -ldflags '${GO_LDFLAGS}' github.com/stellarproject/orbit/cmd/ob
-	go build -o bin/orbit-network -v -ldflags '${GO_LDFLAGS}' github.com/stellarproject/orbit/cmd/orbit-network
-	go build -o bin/orbit-log -v -ldflags '${GO_LDFLAGS}' github.com/stellarproject/orbit/cmd/orbit-log
+
+bin/%:
+	$(GO_BUILD) -o $@ github.com/stellarproject/orbit/cmd/$*
+
+.PHONY: clean
+clean:
+	$(RM) -r bin/
 
 vab:
 	rm -f bin/*
